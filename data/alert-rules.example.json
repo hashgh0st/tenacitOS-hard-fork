@@ -1,0 +1,86 @@
+[
+  {
+    "id": "cost-daily-limit",
+    "name": "Daily cost exceeds $10",
+    "condition": {
+      "metric": "cost.daily.total",
+      "operator": "gt",
+      "value": 10.00
+    },
+    "sustained_checks": 1,
+    "cooldown_minutes": 60,
+    "channels": ["in_app"],
+    "severity": "critical",
+    "enabled": false
+  },
+  {
+    "id": "cpu-high",
+    "name": "CPU sustained above 90%",
+    "condition": {
+      "metric": "system.cpu",
+      "operator": "gt",
+      "value": 90
+    },
+    "sustained_checks": 3,
+    "cooldown_minutes": 15,
+    "channels": ["in_app"],
+    "severity": "warning",
+    "enabled": false
+  },
+  {
+    "id": "ram-high",
+    "name": "RAM usage above 85%",
+    "condition": {
+      "metric": "system.ram",
+      "operator": "gt",
+      "value": 85
+    },
+    "sustained_checks": 3,
+    "cooldown_minutes": 15,
+    "channels": ["in_app"],
+    "severity": "warning",
+    "enabled": false
+  },
+  {
+    "id": "disk-high",
+    "name": "Disk usage above 90%",
+    "condition": {
+      "metric": "system.disk",
+      "operator": "gt",
+      "value": 90
+    },
+    "sustained_checks": 1,
+    "cooldown_minutes": 60,
+    "channels": ["in_app"],
+    "severity": "critical",
+    "enabled": false
+  },
+  {
+    "id": "agent-idle",
+    "name": "Agent idle for 30+ minutes",
+    "condition": {
+      "metric": "agent.idle_minutes",
+      "operator": "gt",
+      "value": 30
+    },
+    "sustained_checks": 1,
+    "cooldown_minutes": 30,
+    "channels": ["in_app"],
+    "severity": "info",
+    "enabled": false
+  },
+  {
+    "id": "gateway-offline",
+    "name": "Gateway offline",
+    "condition": {
+      "metric": "gateway.status",
+      "operator": "eq",
+      "value": 0
+    },
+    "sustained_checks": 2,
+    "cooldown_minutes": 5,
+    "channels": ["in_app"],
+    "severity": "critical",
+    "enabled": false
+  }
+]
