@@ -12,8 +12,9 @@ import fs from 'fs';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { emitEvent } from './bus';
-import type { SystemMetrics, PM2Process, AgentState } from './bus';
+import type { SystemMetrics, PM2Process, AgentState, DockerContainerStatus } from './bus';
 import { OPENCLAW_CONFIG } from '@/lib/paths';
+import { isDockerAvailable, listContainers } from '@/lib/docker/client';
 
 const execFileAsync = promisify(execFile);
 
@@ -174,10 +175,31 @@ function collectAgentStatus(): AgentState[] {
   }
 }
 
+// ── Docker status ─────────────────────────────────────────────────────────
+
+async function collectDockerStatus(): Promise<DockerContainerStatus[] | null> {
+  try {
+    const available = await isDockerAvailable();
+    if (!available) return null;
+
+    const containers = await listContainers();
+    return containers.map((c) => ({
+      id: c.Id.slice(0, 12),
+      name: (c.Names[0] ?? '').replace(/^\//, ''),
+      status: c.Status,
+      state: c.State,
+    }));
+  } catch {
+    // Docker unavailable or error — skip silently
+    return null;
+  }
+}
+
 // ── Poller orchestration ───────────────────────────────────────────────────
 
 let systemInterval: ReturnType<typeof setInterval> | null = null;
 let agentInterval: ReturnType<typeof setInterval> | null = null;
+let dockerInterval: ReturnType<typeof setInterval> | null = null;
 
 async function pollSystemMetrics(): Promise<void> {
   try {
@@ -208,15 +230,28 @@ function pollAgentStatus(): void {
   }
 }
 
+async function pollDockerStatus(): Promise<void> {
+  try {
+    const containers = await collectDockerStatus();
+    if (containers !== null) {
+      emitEvent('docker:status', { containers });
+    }
+  } catch {
+    // Never crash the poller
+  }
+}
+
 export function startPollers(): void {
   if (systemInterval || agentInterval) return; // already running
 
   // Fire immediately, then on interval
   void pollSystemMetrics();
   pollAgentStatus();
+  void pollDockerStatus();
 
   systemInterval = setInterval(() => void pollSystemMetrics(), 2000);
   agentInterval = setInterval(pollAgentStatus, 5000);
+  dockerInterval = setInterval(() => void pollDockerStatus(), 5000);
 }
 
 export function stopPollers(): void {
@@ -227,6 +262,10 @@ export function stopPollers(): void {
   if (agentInterval) {
     clearInterval(agentInterval);
     agentInterval = null;
+  }
+  if (dockerInterval) {
+    clearInterval(dockerInterval);
+    dockerInterval = null;
   }
   // Reset state for clean restart
   prevCpuSnapshot = null;
@@ -241,3 +280,5 @@ export { collectRam as _collectRam };
 export { collectNetwork as _collectNetwork };
 export { collectAgentStatus as _collectAgentStatus };
 export { pollSystemMetrics as _pollSystemMetrics };
+export { collectDockerStatus as _collectDockerStatus };
+export { pollDockerStatus as _pollDockerStatus };
