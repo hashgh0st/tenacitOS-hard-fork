@@ -5,6 +5,7 @@ import { Search, Bell, User, Command, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
+import { ActiveAlertIndicator } from "@/components/Alerts/ActiveAlertIndicator";
 
 export function TopBar() {
   const [showSearch, setShowSearch] = useState(false);
@@ -189,6 +190,9 @@ export function TopBar() {
               </span>
             )}
           </button>
+
+          {/* Active Alert Indicator */}
+          <ActiveAlertIndicator />
 
           {/* Notifications Dropdown */}
           <NotificationDropdown />
