@@ -46,6 +46,7 @@ import {
   _collectPM2,
   _collectRam,
   _collectAgentStatus,
+  _collectNetwork,
 } from '@/lib/events/pollers';
 
 // Helper: make the execFile mock invoke its callback with given stdout
@@ -170,6 +171,42 @@ describe('Pollers', () => {
     it('returns null when PM2 is not available', async () => {
       mockExecFileFailure(new Error('pm2: command not found'));
       const result = await _collectPM2();
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('Network collection', () => {
+    it('parses /proc/net/dev on Linux', async () => {
+      const procNetDev = [
+        'Inter-|   Receive                                                |  Transmit',
+        ' face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets',
+        '    lo: 1000     10    0    0    0     0          0         0     1000      10',
+        '  eth0: 500000   300    0    0    0     0          0         0   200000     150',
+      ].join('\n');
+      (fs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(procNetDev);
+
+      // First call establishes baseline (returns zeros)
+      const first = await _collectNetwork();
+      expect(first).toEqual({ rx: 0, tx: 0 });
+
+      // Advance time so delta calculation works (dtSec > 0)
+      await vi.advanceTimersByTimeAsync(2000);
+
+      // Second call returns delta
+      const procNetDev2 = procNetDev.replace('500000', '600000').replace('200000', '250000');
+      (fs.readFileSync as ReturnType<typeof vi.fn>).mockReturnValue(procNetDev2);
+
+      const second = await _collectNetwork();
+      expect(second).not.toBeNull();
+      expect(second!.rx).toBe(100000);
+      expect(second!.tx).toBe(50000);
+    });
+
+    it('returns null on macOS (no /proc/net/dev)', async () => {
+      (fs.readFileSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        throw new Error('ENOENT: no such file or directory');
+      });
+      const result = await _collectNetwork();
       expect(result).toBeNull();
     });
   });
