@@ -1,12 +1,41 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Bell, User, Command } from "lucide-react";
+import { Search, Bell, User, Command, ShieldCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
 
 export function TopBar() {
   const [showSearch, setShowSearch] = useState(false);
+  const [approvalCount, setApprovalCount] = useState(0);
+  const router = useRouter();
+
+  // Poll for pending approval count
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchCount() {
+      try {
+        const res = await fetch("/api/approvals");
+        if (!res.ok) return;
+        const data = await res.json();
+        const pending = (data.approvals || []).filter(
+          (a: { status: string }) => a.status === "pending",
+        );
+        if (!cancelled) setApprovalCount(pending.length);
+      } catch {
+        // Silently ignore — badge just won't update
+      }
+    }
+
+    fetchCount();
+    const interval = setInterval(fetchCount, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -112,6 +141,53 @@ export function TopBar() {
             >
               Search... ⌘K
             </span>
+          </button>
+
+          {/* Approval Badge */}
+          <button
+            onClick={() => router.push("/approvals")}
+            style={{
+              position: "relative",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "4px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            title="Approvals"
+          >
+            <ShieldCheck
+              style={{
+                width: "18px",
+                height: "18px",
+                color: approvalCount > 0 ? "var(--warning, #f59e0b)" : "var(--text-muted)",
+              }}
+            />
+            {approvalCount > 0 && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: "-2px",
+                  right: "-4px",
+                  backgroundColor: "var(--error, #ef4444)",
+                  color: "#fff",
+                  fontSize: "9px",
+                  fontWeight: 700,
+                  minWidth: "16px",
+                  height: "16px",
+                  borderRadius: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "0 4px",
+                  lineHeight: 1,
+                }}
+              >
+                {approvalCount > 99 ? "99+" : approvalCount}
+              </span>
+            )}
           </button>
 
           {/* Notifications Dropdown */}

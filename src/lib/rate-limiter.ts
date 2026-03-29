@@ -1,24 +1,34 @@
 /**
  * Reusable sliding-window rate limiter.
  *
- * Tracks timestamps per key in a Map. Unlike the login limiter,
- * there is no lockout — just a sliding window that prunes expired
- * timestamps on each check.
+ * Tracks timestamps per key in a Map. Prunes expired timestamps
+ * on each check. Optionally supports a lockout duration: when
+ * `lockoutMs` is set and the limit is exceeded, the key is locked
+ * for that duration regardless of the sliding window.
  */
 
 export interface RateLimiterConfig {
   maxActions: number;
   windowMs: number;
+  /**
+   * Optional lockout duration. When set, after `maxActions` are reached the
+   * key is locked for this many milliseconds — even if the sliding window
+   * would otherwise have freed up a slot.
+   */
+  lockoutMs?: number;
 }
 
 export class SlidingWindowLimiter {
   private readonly maxActions: number;
   private readonly windowMs: number;
+  private readonly lockoutMs: number | undefined;
   private readonly timestamps: Map<string, number[]> = new Map();
+  private readonly lockouts: Map<string, number> = new Map();
 
   constructor(config: RateLimiterConfig) {
     this.maxActions = config.maxActions;
     this.windowMs = config.windowMs;
+    this.lockoutMs = config.lockoutMs;
   }
 
   /**
@@ -27,6 +37,18 @@ export class SlidingWindowLimiter {
    */
   check(key: string): { allowed: boolean; retryAfterMs?: number } {
     const now = Date.now();
+
+    // Check active lockout first
+    const lockedUntil = this.lockouts.get(key);
+    if (lockedUntil !== undefined) {
+      if (now < lockedUntil) {
+        return { allowed: false, retryAfterMs: lockedUntil - now };
+      }
+      // Lockout expired — clear it and the timestamps
+      this.lockouts.delete(key);
+      this.timestamps.delete(key);
+    }
+
     const entries = this.timestamps.get(key);
 
     if (!entries || entries.length === 0) {
@@ -40,6 +62,13 @@ export class SlidingWindowLimiter {
 
     if (valid.length < this.maxActions) {
       return { allowed: true };
+    }
+
+    // Apply lockout if configured
+    if (this.lockoutMs) {
+      const lockUntil = now + this.lockoutMs;
+      this.lockouts.set(key, lockUntil);
+      return { allowed: false, retryAfterMs: this.lockoutMs };
     }
 
     // The oldest timestamp in the window determines when the next slot opens
@@ -63,5 +92,6 @@ export class SlidingWindowLimiter {
    */
   reset(key: string): void {
     this.timestamps.delete(key);
+    this.lockouts.delete(key);
   }
 }

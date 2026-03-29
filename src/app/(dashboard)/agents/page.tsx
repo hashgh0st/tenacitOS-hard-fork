@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { AgentOrganigrama } from "@/components/AgentOrganigrama";
 import { useAgentStatus } from "@/components/shared/SSEProvider";
+import { AgentActionDropdown } from "@/components/Agents/AgentActionDropdown";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Agent {
   id: string;
@@ -41,6 +43,8 @@ export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"cards" | "organigrama">("cards");
+  const { user } = useAuth();
+  const isOperator = user?.role === "operator" || user?.role === "admin";
 
   // SSE stream for real-time agent status
   const { data: sseAgents } = useAgentStatus();
@@ -231,14 +235,23 @@ export default function AgentsPage() {
                 </div>
               </div>
 
-              {agent.botToken && (
-                <div title="Telegram Bot Connected">
-                  <MessageSquare
-                    className="w-5 h-5"
-                    style={{ color: "#0088cc" }}
+              <div className="flex items-center gap-2">
+                {agent.botToken && (
+                  <div title="Telegram Bot Connected">
+                    <MessageSquare
+                      className="w-5 h-5"
+                      style={{ color: "#0088cc" }}
+                    />
+                  </div>
+                )}
+                {isOperator && (
+                  <AgentActionDropdown
+                    agentId={agent.id}
+                    agentName={agent.name}
+                    currentModel={agent.model}
                   />
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Details */}

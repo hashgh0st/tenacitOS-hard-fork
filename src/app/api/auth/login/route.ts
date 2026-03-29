@@ -13,20 +13,17 @@ import { getDb, initAuthDb } from '@/lib/auth/db';
 import { verifyPassword } from '@/lib/auth/password';
 import { createSession } from '@/lib/auth/session';
 import { logAudit } from '@/lib/auth/audit';
+import { SlidingWindowLimiter } from '@/lib/rate-limiter';
 import { randomBytes, createHash } from 'crypto';
 
-// --- In-memory rate limiter (per-IP, resets on server restart) ---
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-const LOCKOUT_MS = 15 * 60 * 1000; // 15 minute lockout after max attempts
+// --- Rate limiter: 5 attempts per 15 min, 15-min lockout after limit ---
+const LOCKOUT_MS = 15 * 60 * 1000;
 
-interface AttemptRecord {
-  count: number;
-  windowStart: number;
-  lockedUntil?: number;
-}
-
-const attempts = new Map<string, AttemptRecord>();
+const loginLimiter = new SlidingWindowLimiter({
+  maxActions: 5,
+  windowMs: 15 * 60 * 1000,
+  lockoutMs: LOCKOUT_MS,
+});
 
 // Temporary TOTP tokens: maps SHA-256(token) -> { userId, username, role, expiresAt }
 // These are short-lived (5 min) and used only during the TOTP verification step.
@@ -63,56 +60,11 @@ function getClientIp(request: NextRequest): string {
   );
 }
 
-function checkRateLimit(ip: string): { allowed: boolean; retryAfterMs?: number } {
-  const now = Date.now();
-  const record = attempts.get(ip);
-
-  if (!record) {
-    return { allowed: true };
-  }
-
-  // Still locked out?
-  if (record.lockedUntil && now < record.lockedUntil) {
-    return { allowed: false, retryAfterMs: record.lockedUntil - now };
-  }
-
-  // Window expired — reset
-  if (now - record.windowStart > WINDOW_MS) {
-    attempts.delete(ip);
-    return { allowed: true };
-  }
-
-  // Within window, check count
-  if (record.count >= MAX_ATTEMPTS) {
-    record.lockedUntil = now + LOCKOUT_MS;
-    attempts.set(ip, record);
-    return { allowed: false, retryAfterMs: LOCKOUT_MS };
-  }
-
-  return { allowed: true };
-}
-
-function recordFailure(ip: string): void {
-  const now = Date.now();
-  const record = attempts.get(ip);
-
-  if (!record || now - record.windowStart > WINDOW_MS) {
-    attempts.set(ip, { count: 1, windowStart: now });
-  } else {
-    record.count += 1;
-    attempts.set(ip, record);
-  }
-}
-
-function clearAttempts(ip: string): void {
-  attempts.delete(ip);
-}
-
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
 
   // Rate limit check
-  const { allowed, retryAfterMs } = checkRateLimit(ip);
+  const { allowed, retryAfterMs } = loginLimiter.check(ip);
   if (!allowed) {
     const retryAfterSec = Math.ceil((retryAfterMs ?? LOCKOUT_MS) / 1000);
     return NextResponse.json(
@@ -165,7 +117,7 @@ export async function POST(request: NextRequest) {
     | undefined;
 
   if (!user || !user.is_active) {
-    recordFailure(ip);
+    loginLimiter.record(ip);
     logAudit({
       username: username,
       action: 'login.failed',
@@ -183,7 +135,7 @@ export async function POST(request: NextRequest) {
   // Verify password
   const validPassword = await verifyPassword(user.password_hash, password);
   if (!validPassword) {
-    recordFailure(ip);
+    loginLimiter.record(ip);
     logAudit({
       userId: user.id,
       username: user.username,
@@ -218,7 +170,7 @@ export async function POST(request: NextRequest) {
       ipAddress: ip,
     });
 
-    clearAttempts(ip);
+    loginLimiter.reset(ip);
     return NextResponse.json({
       success: true,
       requiresTOTP: true,
@@ -227,7 +179,7 @@ export async function POST(request: NextRequest) {
   }
 
   // No TOTP — create full session
-  clearAttempts(ip);
+  loginLimiter.reset(ip);
   const userAgent = request.headers.get('user-agent') || 'unknown';
   const session = createSession(user.id, ip, userAgent, rememberMe);
 
