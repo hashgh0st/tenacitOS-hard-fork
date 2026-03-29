@@ -1,33 +1,60 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Routes that never require authentication
-const PUBLIC_ROUTES = new Set(["/login"]);
+/**
+ * Edge-compatible middleware.
+ *
+ * This runs in the Edge Runtime — no SQLite, no Node.js-only modules.
+ * It performs lightweight cookie-presence checks only.
+ * Actual session validation happens in withAuth() (Node.js runtime).
+ */
 
-// API routes that are always public (auth endpoints + health check)
-const PUBLIC_API_PREFIXES = ["/api/auth/", "/api/health"];
+// Pages that never require authentication
+const PUBLIC_PAGES = new Set(["/login", "/setup", "/register"]);
 
-function isAuthenticated(request: NextRequest): boolean {
-  const authCookie = request.cookies.get("mc_auth");
-  return !!(authCookie && authCookie.value === process.env.AUTH_SECRET);
+// API routes that are always public
+const PUBLIC_API_ROUTES = new Set([
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/auth/totp/verify",
+  "/api/health",
+  "/api/collector/ingest",
+]);
+
+// API prefixes that are always public (for sub-routes)
+const PUBLIC_API_PREFIXES = ["/api/auth/login", "/api/auth/register"];
+
+function isPublicRoute(pathname: string): boolean {
+  // Check exact page matches
+  if (PUBLIC_PAGES.has(pathname)) return true;
+
+  // Check exact API route matches
+  if (PUBLIC_API_ROUTES.has(pathname)) return true;
+
+  // Check API prefix matches
+  if (PUBLIC_API_PREFIXES.some((prefix) => pathname.startsWith(prefix + "/"))) {
+    return true;
+  }
+
+  return false;
+}
+
+function hasSessionCookie(request: NextRequest): boolean {
+  const sessionCookie = request.cookies.get("tenacitos_session");
+  return !!(sessionCookie && sessionCookie.value);
 }
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Always allow public pages (login)
-  if (PUBLIC_ROUTES.has(pathname)) {
+  // Always allow public routes
+  if (isPublicRoute(pathname)) {
     return NextResponse.next();
   }
 
-  // Always allow public API routes (auth + health)
-  if (PUBLIC_API_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
-    return NextResponse.next();
-  }
-
-  // Check authentication
-  if (!isAuthenticated(request)) {
-    // For API routes: return 401 JSON (not a redirect)
+  // Check for session cookie presence (not validity — that's done in withAuth)
+  if (!hasSessionCookie(request)) {
+    // For API routes: return 401 JSON
     if (pathname.startsWith("/api/")) {
       return NextResponse.json(
         { error: "Unauthorized", message: "Authentication required" },
@@ -35,7 +62,7 @@ export function middleware(request: NextRequest) {
       );
     }
 
-    // For page routes: redirect to login
+    // For page routes: redirect to login with return URL
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", pathname);
     return NextResponse.redirect(loginUrl);
@@ -53,5 +80,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public files (with extension)
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+    "/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)",
+  ],
 };
