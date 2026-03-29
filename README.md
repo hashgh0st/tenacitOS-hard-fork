@@ -1,6 +1,6 @@
 # TenacitOS-X -- OpenClaw Mission Control
 
-A real-time operations platform for [OpenClaw](https://openclaw.ai) AI agent fleets. Monitor, control, and manage your agents from a single dashboard. Built with Next.js 15, React 19, and Tailwind CSS v4.
+A real-time operations platform for [OpenClaw](https://openclaw.ai) AI agent fleets. Monitor, control, and manage your agents from a single dashboard. Built with Next.js 16, React 19, and Tailwind CSS v4.
 
 > Hard fork of [carlosazaustre/tenacitOS](https://github.com/carlosazaustre/tenacitOS). TenacitOS-X transforms the original read-only monitoring dashboard into a full agent operations platform with real-time streaming, agent lifecycle control, multi-user auth, fleet management, and more.
 
@@ -340,7 +340,7 @@ mission-control/
 
 | Layer | Tech |
 |---|---|
-| Framework | Next.js 15 (App Router) |
+| Framework | Next.js 16 (App Router) |
 | UI | React 19 + Tailwind CSS v4 |
 | 3D | React Three Fiber + Drei |
 | Charts | Recharts |

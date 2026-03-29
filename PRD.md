@@ -12,7 +12,7 @@
 
 ## 1. Executive Summary
 
-TenacitOS is a Next.js 15 / React 19 real-time dashboard for OpenClaw AI agent instances. It reads agent config, sessions, memory, and logs directly from the host filesystem and SQLite databases. The current version (v0.1.x) is observation-only with basic password auth.
+TenacitOS is a Next.js 16 / React 19 real-time dashboard for OpenClaw AI agent instances. It reads agent config, sessions, memory, and logs directly from the host filesystem and SQLite databases. The current version (v0.1.x) is observation-only with basic password auth.
 
 TenacitOS-X extends the upstream with:
 1. Real-time WebSocket/SSE streaming
@@ -504,7 +504,7 @@ Replace the read-only terminal with a curated set of safe operational actions pr
 ## 6. Technical Constraints
 
 - **Runtime:** Node.js 22 (matching upstream)
-- **Framework:** Next.js 15 App Router (preserving upstream architecture)
+- **Framework:** Next.js 16 App Router (preserving upstream architecture)
 - **Database:** SQLite only (via better-sqlite3). No PostgreSQL or external DB requirement.
 - **Auth:** All auth data local. No OAuth providers required (optional future enhancement).
 - **Deployment:** Single `npm run build && npm start`. No Docker required to run the dashboard itself (Docker management feature reads from socket on host).

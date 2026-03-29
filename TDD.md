@@ -12,7 +12,7 @@
 
 ## 1. Architecture Overview
 
-TenacitOS-X preserves the upstream Next.js 15 App Router architecture and extends it with new layers. The system has four logical tiers:
+TenacitOS-X preserves the upstream Next.js 16 App Router architecture and extends it with new layers. The system has four logical tiers:
 
 ```
 +----------------------------------------------------------+

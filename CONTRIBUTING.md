@@ -1,14 +1,14 @@
-# Contributing to Mission Control
+# Contributing to TenacitOS-X
 
-Thank you for your interest in contributing! 🦞
+Thank you for your interest in contributing!
 
 ## Getting Started
 
 1. Fork the repository
-2. Clone your fork: `git clone https://github.com/YOUR-USERNAME/mission-control.git`
+2. Clone your fork: `git clone https://github.com/YOUR-USERNAME/tenacitOS-hard-fork.git`
 3. Create a branch: `git checkout -b feature/your-feature-name`
 4. Make your changes
-5. Test thoroughly
+5. Run tests: `npm test`
 6. Commit with clear messages
 7. Push and create a Pull Request
 
@@ -20,7 +20,7 @@ See [README.md](./README.md#quick-start) for setup instructions.
 ```bash
 npm install
 cp .env.example .env.local
-# Edit .env.local with your config
+# Edit .env.local -- at minimum set AUTH_SECRET
 npm run dev
 ```
 
@@ -29,11 +29,23 @@ npm run dev
 ### File Organization
 
 - **Components**: `src/components/` - Reusable UI components
-- **Pages**: `src/app/` - Next.js App Router pages
+  - `src/components/shared/` - Cross-feature shared components
+  - `src/components/{FeatureName}/` - Feature-specific components (e.g., `Docker/`, `Alerts/`)
+  - `src/components/Office3D/` - 3D office (React Three Fiber imports only here)
+- **Pages**: `src/app/(dashboard)/` - Dashboard pages (protected by auth)
 - **APIs**: `src/app/api/` - API route handlers
-- **Config**: `src/config/` - Configuration files (branding, constants)
-- **Lib**: `src/lib/` - Utilities, helpers, and libraries
-- **Data**: `data/` - JSON data files (gitignored, use `.example` versions)
+- **Config**: `src/config/` - Configuration files (branding, action definitions)
+- **Lib**: `src/lib/` - Business logic organized by feature
+  - `src/lib/auth/` - Authentication, RBAC, audit, TOTP
+  - `src/lib/events/` - Event bus, watchers, pollers
+  - `src/lib/docker/` - Docker Engine API client
+  - `src/lib/alerts/` - Alert engine, channels, resolvers
+  - `src/lib/fleet/` - Fleet DB, ingest, API keys
+  - `src/lib/chat/` - Gateway proxy, tool functions
+  - `src/lib/sessions/` - Trace parser
+- **Hooks**: `src/hooks/` - React hooks (useSSE, useAuth, useWebSocket)
+- **Data**: `data/` - JSON data + SQLite DBs (gitignored, use `.example` versions)
+- **Tests**: `tests/unit/`, `tests/integration/`, `tests/e2e/`
 
 ### Naming Conventions
 
@@ -174,17 +186,30 @@ const username = BRANDING.twitterHandle;
 
 ## Testing
 
+### Automated Tests
+
+```bash
+npm test              # Run unit + integration tests (Vitest)
+npm run test:watch    # Watch mode
+npm run test:coverage # With coverage report
+npm run test:e2e      # E2E tests (Playwright)
+```
+
+Unit tests are **mandatory** for:
+- Auth: password hashing, TOTP, sessions, role checks
+- Alert engine: condition evaluation, cooldown, sustained checks
+- Rate limiters: sliding window enforcement
+
 ### Manual Testing Checklist
 
 Before submitting a PR:
 
+- [ ] `npm test` passes
 - [ ] Build succeeds: `npm run build`
 - [ ] No TypeScript errors: `tsc --noEmit`
 - [ ] No ESLint errors: `npm run lint`
 - [ ] Tested in dev mode: `npm run dev`
-- [ ] Tested in production mode: `npm run build && npm start`
 - [ ] Responsive design works (mobile, tablet, desktop)
-- [ ] Dark mode looks good (default theme)
 - [ ] No console errors in browser
 - [ ] No hardcoded personal data
 
@@ -196,7 +221,7 @@ For new features:
 2. Test edge cases (empty data, large datasets, etc.)
 3. Test error handling (network failures, invalid input)
 4. Test on different screen sizes
-5. Update `IMPLEMENTATION-STATUS.md`
+5. Write unit tests for any new lib/ code
 
 ## Commit Messages
 
@@ -356,7 +381,7 @@ Feature requests are welcome! Use GitHub Issues with:
 - **Alternatives**: Other ways to solve the problem?
 - **Priority**: Nice-to-have vs critical
 
-Check [ROADMAP.md](./ROADMAP.md) first - it might already be planned!
+Check [PRD.md](./PRD.md) for the feature roadmap -- it might already be planned!
 
 ## Questions?
 
@@ -366,4 +391,4 @@ Check [ROADMAP.md](./ROADMAP.md) first - it might already be planned!
 
 ---
 
-Thank you for contributing! 🦞✨
+Thank you for contributing!
