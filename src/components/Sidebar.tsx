@@ -26,7 +26,6 @@ import {
   Zap,
   Server,
   GitFork,
-  SquareTerminal,
   History,
 } from "lucide-react";
 import { getAgentDisplayName } from "@/config/branding";
@@ -38,7 +37,6 @@ const navItems = [
   { href: "/actions", label: "Quick Actions", icon: Zap },
   { href: "/system", label: "System", icon: Server },
   { href: "/logs", label: "Live Logs", icon: Terminal },
-  { href: "/terminal", label: "Terminal", icon: SquareTerminal },
   { href: "/git", label: "Git", icon: GitFork },
   { href: "/workflows", label: "Workflows", icon: Workflow },
   { href: "/activity", label: "Activity", icon: Activity },

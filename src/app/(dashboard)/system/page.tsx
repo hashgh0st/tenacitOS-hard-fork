@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Cpu, HardDrive, MemoryStick, Activity, Network, Server, ShieldCheck, RotateCw, Wifi, Monitor, Play, Square, X, Loader2, Terminal, ArrowDown, ArrowUp } from "lucide-react";
+import { useSystemMetrics } from "@/components/shared/SSEProvider";
 
 interface SystemdService {
   name: string;
@@ -71,6 +72,10 @@ export default function SystemMonitorPage() {
   const [logsModal, setLogsModal] = useState<LogsModal | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
+  // SSE stream for real-time system metrics
+  const { data: sseMetrics } = useSystemMetrics();
+
+  // Initial fetch — loads full SystemData (richer than SSE payload)
   useEffect(() => {
     const fetchSystemData = async () => {
       try {
@@ -88,9 +93,24 @@ export default function SystemMonitorPage() {
     };
 
     fetchSystemData();
-    const interval = setInterval(fetchSystemData, 5000);
-    return () => clearInterval(interval);
   }, []);
+
+  // Merge SSE metrics into existing system data when they arrive
+  useEffect(() => {
+    if (sseMetrics && systemData) {
+      setSystemData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          cpu: { ...prev.cpu, usage: sseMetrics.cpu },
+          ram: { ...prev.ram, ...sseMetrics.ram },
+          disk: { ...prev.disk, ...sseMetrics.disk },
+          network: sseMetrics.network ?? prev.network,
+        };
+      });
+      setLastUpdated(new Date());
+    }
+  }, [sseMetrics]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });

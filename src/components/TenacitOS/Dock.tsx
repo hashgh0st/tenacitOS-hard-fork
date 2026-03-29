@@ -15,6 +15,9 @@ import {
   DollarSign,
   Settings,
   History,
+  Users,
+  FileText,
+  Zap,
 } from "lucide-react";
 
 const dockItems = [
@@ -30,6 +33,9 @@ const dockItems = [
   { href: "/skills", label: "Skills", icon: Puzzle },
   { href: "/costs", label: "Costs & Analytics", icon: DollarSign },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/users", label: "Users", icon: Users },
+  { href: "/audit", label: "Audit Log", icon: FileText },
+  { href: "/actions", label: "Actions", icon: Zap },
 ];
 
 export function Dock() {

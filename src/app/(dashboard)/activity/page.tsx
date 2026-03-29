@@ -26,6 +26,7 @@ import {
   Download,
 } from "lucide-react";
 import { RichDescription } from "@/components/RichDescription";
+import { useActivityFeed } from "@/components/shared/SSEProvider";
 
 interface Activity {
   id: string;
@@ -187,6 +188,20 @@ export default function ActivityPage() {
     setStartDate(start);
     setEndDate(end);
   }, []);
+
+  // SSE stream — prepend new activities in real-time
+  const { data: sseActivity } = useActivityFeed();
+
+  useEffect(() => {
+    if (sseActivity && sseActivity.id) {
+      setActivities((prev) => {
+        // Avoid duplicates
+        if (prev.some((a) => a.id === sseActivity.id)) return prev;
+        setTotal((t) => t + 1);
+        return [sseActivity as Activity, ...prev];
+      });
+    }
+  }, [sseActivity]);
 
   const handlePresetClick = (days: number, index: number) => {
     setActivePreset(index);

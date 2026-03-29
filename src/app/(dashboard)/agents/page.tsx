@@ -14,6 +14,7 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { AgentOrganigrama } from "@/components/AgentOrganigrama";
+import { useAgentStatus } from "@/components/shared/SSEProvider";
 
 interface Agent {
   id: string;
@@ -41,11 +42,36 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"cards" | "organigrama">("cards");
 
+  // SSE stream for real-time agent status
+  const { data: sseAgents } = useAgentStatus();
+
+  // Initial fetch
   useEffect(() => {
     fetchAgents();
-    const interval = setInterval(fetchAgents, 10000);
-    return () => clearInterval(interval);
   }, []);
+
+  // Merge SSE agent status updates into local state
+  useEffect(() => {
+    if (sseAgents?.agents) {
+      setAgents((prev) => {
+        // Merge SSE status onto existing full Agent objects by id
+        const statusMap = new Map(
+          sseAgents.agents.map((a) => [a.id, a]),
+        );
+        return prev.map((agent) => {
+          const update = statusMap.get(agent.id);
+          if (!update) return agent;
+          return {
+            ...agent,
+            status: update.status === 'active' || update.status === 'idle'
+              ? 'online' as const
+              : 'offline' as const,
+            lastActivity: update.lastSeen ?? agent.lastActivity,
+          };
+        });
+      });
+    }
+  }, [sseAgents]);
 
   const fetchAgents = async () => {
     try {
