@@ -1,20 +1,23 @@
 # TenacitOS-X -- OpenClaw Mission Control
 
-A Phase 1 real-time operations dashboard for [OpenClaw](https://openclaw.ai) agent workspaces. Built with Next.js 16, React 19, and Tailwind CSS v4.
+A real-time operations platform for [OpenClaw](https://openclaw.ai) AI agent fleets. Monitor, control, and manage your agents from a single dashboard. Built with Next.js 16, React 19, and Tailwind CSS v4.
 
-> Hard fork of [carlosazaustre/tenacitOS](https://github.com/carlosazaustre/tenacitOS). This fork currently ships Phase 0 and Phase 1 work: real-time SSE delivery, multi-user auth + TOTP, and curated safe action controls. Later control-plane features remain on the roadmap.
+> Hard fork of [carlosazaustre/tenacitOS](https://github.com/carlosazaustre/tenacitOS). TenacitOS-X transforms the original read-only monitoring dashboard into a full agent operations platform with real-time streaming, multi-user auth, agent lifecycle control, Docker management, configurable alerts, and more.
 
 ---
 
 ## What Changed from Upstream
 
-The original TenacitOS is a solid monitoring dashboard. TenacitOS-X currently extends it with the Phase 1 foundation for secure, real-time operations:
+The original TenacitOS is a solid monitoring dashboard. TenacitOS-X keeps everything that works and adds the operational muscle that production deployments need:
 
 | Upstream TenacitOS | TenacitOS-X |
 |---|---|
 | Polling-based data refresh | Real-time SSE streaming (sub-2s latency) |
 | Read-only terminal | Curated safe-action control panel |
 | Single shared password | Multi-user auth with TOTP MFA and RBAC |
+| Observation only | Full agent lifecycle control (start/stop/restart/message) |
+| No Docker visibility | Docker container management (remote host support) |
+| No alerting | Configurable threshold alerts with webhook, Telegram, and email delivery |
 
 ---
 
@@ -42,6 +45,15 @@ Per-user accounts with role-based access (admin, operator, viewer). Optional TOT
 **Hardened Action Controls**
 The read-only terminal is replaced with a curated grid of safe operational actions such as gateway status checks, restarts, usage collection, system info, disk usage, PM2 inspection, cache clearing, and data backup. No freeform command input. All actions are predefined in code with role gating.
 
+**Agent Control Plane**
+Start, stop, and restart agents through the OpenClaw gateway. Send messages to active sessions. Hot-swap models at runtime. Approve or deny pending agent actions from an approval queue with auto-deny countdown. All control actions require confirmation and log to the audit trail. Rate limited to 10 actions per minute per user.
+
+**Docker Management**
+Connect to a remote Docker host via `DOCKER_HOST` (TCP or Unix socket). View containers with status, images, and system info. Start, stop, and restart containers. Stream container logs in real-time. Prune stopped containers and dangling images. Gracefully hidden when Docker is not configured.
+
+**Configurable Alerts**
+Set thresholds on CPU, RAM, disk, daily cost, and gateway health. Alerts fire after sustained threshold breaches with configurable cooldowns. Deliver to in-app notifications, webhooks (Slack/Discord), Telegram, or email. Auto-resolve when conditions clear. Active critical alerts show a red indicator in the top bar.
+
 ---
 
 ## Requirements
@@ -50,7 +62,7 @@ The read-only terminal is replaced with a curated grid of safe operational actio
 - **[OpenClaw](https://openclaw.ai)** installed and running on the same host
 - **PM2** or **systemd** (recommended for production)
 - **Caddy** or another reverse proxy (for HTTPS in production)
-- **Docker** (optional, for host service visibility where supported)
+- **Docker** (optional, remote host via `DOCKER_HOST` env var for container management)
 
 ---
 
@@ -87,6 +99,7 @@ cp data/notifications.example.json data/notifications.json
 cp data/configured-skills.example.json data/configured-skills.json
 cp data/tasks.example.json data/tasks.json
 cp data/alert-rules.example.json data/alert-rules.json
+cp data/alert-channels.example.json data/alert-channels.json
 ```
 
 ### 4. Run
@@ -186,15 +199,22 @@ mission-control/
 │   │   ├── (dashboard)/          # Dashboard pages (protected)
 │   │   │   ├── actions/          # Safe action controls
 │   │   │   ├── activity/         # Activity feed + charts
-│   │   │   ├── agents/           # Agent dashboard
+│   │   │   ├── agents/           # Agent dashboard + lifecycle control
+│   │   │   ├── alerts/           # Alert rules and history
+│   │   │   ├── approvals/        # Approval gate queue
 │   │   │   ├── audit/            # Audit log viewer (admin)
 │   │   │   ├── costs/            # Usage and spend pages
+│   │   │   ├── docker/           # Docker container management
 │   │   │   ├── files/            # File browser
 │   │   │   ├── memory/           # Memory browser
 │   │   │   ├── sessions/         # Session list and detail views
 │   │   │   └── users/            # User management (admin)
 │   │   ├── api/                  # API routes
 │   │   │   ├── auth/             # Login, register, TOTP
+│   │   │   ├── agents/           # Agent control + model swap
+│   │   │   ├── alerts/           # Alert CRUD + history
+│   │   │   ├── approvals/        # Approval management
+│   │   │   ├── docker/           # Docker API proxy
 │   │   │   ├── stream/           # SSE endpoints
 │   │   │   └── actions/          # Safe action execution
 │   │   ├── login/                # Login page
@@ -203,6 +223,10 @@ mission-control/
 │   │   └── office/               # 3D office
 │   ├── components/
 │   │   ├── Actions/              # Action cards and output
+│   │   ├── Agents/               # Agent action dropdown, modals
+│   │   ├── Alerts/               # Alert rule cards, editor, history
+│   │   ├── Approvals/            # Approval cards
+│   │   ├── Docker/               # Container cards, log viewer
 │   │   ├── TenacitOS/            # OS-style UI shell
 │   │   ├── Office3D/             # React Three Fiber 3D office
 │   │   ├── charts/               # Dashboard charts
@@ -213,6 +237,9 @@ mission-control/
 │   │   └── actions.ts            # Safe action definitions
 │   └── lib/
 │       ├── auth/                 # Auth, RBAC, audit, TOTP
+│       ├── alerts/               # Alert engine, resolvers, channels
+│       ├── docker/               # Docker Engine API client
+│       ├── gateway/              # OpenClaw gateway client
 │       └── events/               # Event bus, watchers, pollers
 ├── data/                         # JSON data + SQLite DBs (gitignored)
 ├── docs/                         # Extended documentation
@@ -250,7 +277,10 @@ mission-control/
 - TOTP secrets encrypted at rest with AES-256-GCM
 - All control actions logged to an append-only audit trail
 - Safe action controls use `execFile` (no shell expansion, no user input interpolation)
-- Terminal command execution is restricted to predefined action definitions in code
+- All commands restricted to predefined action definitions in code
+- Agent control actions rate-limited (10/min per user) with sliding window
+- Docker socket access is opt-in via `DOCKER_HOST` env var
+- Alert webhook/Telegram/email delivery is fire-and-forget with error isolation
 
 Generate fresh secrets:
 
@@ -276,16 +306,21 @@ openclaw gateway start
 npx tsx scripts/collect-usage.ts
 ```
 
-**Docker panel shows "Docker not detected"**
+**Docker panel shows "Docker not configured"**
 ```bash
-# Verify Docker is running
-docker ps
+# Set DOCKER_HOST to your remote Docker daemon
+echo 'DOCKER_HOST=tcp://192.168.1.100:2375' >> .env.local
 
-# Verify socket is accessible
-ls -la /var/run/docker.sock
+# Or for a local socket
+echo 'DOCKER_HOST=unix:///var/run/docker.sock' >> .env.local
+```
 
-# Set custom socket path if needed
-echo 'DOCKER_SOCKET=/path/to/docker.sock' >> .env.local
+**Docker panel shows "Docker unreachable"**
+```bash
+# Verify the Docker daemon is running on the remote host
+docker -H tcp://192.168.1.100:2375 ps
+
+# Check firewall rules allow port 2375
 ```
 
 **TOTP code rejected**
@@ -305,7 +340,7 @@ npm run build
 
 - [x] Fork and restructure from upstream
 - [x] **Phase 1:** SSE streaming layer, multi-user auth + TOTP, safe action controls
-- [ ] **Phase 2:** Agent lifecycle control, alerting engine, Docker management
+- [x] **Phase 2:** Agent lifecycle control, alerting engine, Docker management
 - [ ] **Phase 3:** AI ops chat, session replay with trace inspection
 - [ ] **Phase 4:** Fleet monitoring with remote collectors, PWA + push notifications
 

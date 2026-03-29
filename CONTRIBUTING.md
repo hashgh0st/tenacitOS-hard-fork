@@ -37,7 +37,10 @@ npm run dev
 - **Config**: `src/config/` - Configuration files (branding, action definitions)
 - **Lib**: `src/lib/` - Business logic organized by feature
   - `src/lib/auth/` - Authentication, RBAC, audit, TOTP
-  - `src/lib/events/` - Event bus, watchers, pollers
+  - `src/lib/events/` - Event bus, watchers, pollers, SSE factory
+  - `src/lib/docker/` - Docker Engine API client (remote host support)
+  - `src/lib/gateway/` - OpenClaw gateway client, agent ID validation
+  - `src/lib/alerts/` - Alert engine, metric resolvers, delivery channels, storage
 - **Hooks**: `src/hooks/` - React hooks (`useSSE`, `useAuth`, `useDebounce`)
 - **Data**: `data/` - JSON data + SQLite DBs (gitignored, use `.example` versions)
 - **Tests**: `tests/unit/`, `tests/integration/`, `tests/e2e/`

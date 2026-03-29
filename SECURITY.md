@@ -71,15 +71,17 @@ All API routes enforce role-based access via a `withAuth()` wrapper in Node.js r
 ### Network Security
 
 - Gateway API runs on loopback by default (`GATEWAY_URL=http://localhost:3001`)
-- Docker socket access is opt-in and configurable via `DOCKER_SOCKET` env var
+- Docker access is opt-in via `DOCKER_HOST` env var (supports TCP and Unix socket)
+- Gateway client has 5-second AbortController timeout on all calls
+- Alert webhook/Telegram delivery is fire-and-forget with error isolation (one failing channel does not block others)
 
 ### Rate Limiting
 
 | Endpoint | Limit | Scope |
 |----------|-------|-------|
-| Login | 5 attempts / 15 min | Per IP |
-
-Additional per-feature rate limits for later roadmap phases are not in scope for the current release.
+| Login | 5 attempts / 15 min (lockout) | Per IP |
+| Agent control (start/stop/restart/message/model) | 10 actions / min | Per user |
+| Docker actions (start/stop/restart/prune) | Via withAuth role gating | Per request |
 
 ## Security Best Practices
 

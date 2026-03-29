@@ -6,17 +6,17 @@
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| **F1: SSE Streaming** | Replace polling with Server-Sent Events. Event bus, filesystem watchers, system metrics poller, 5 SSE endpoints, `useSSE` client hook. | Planned |
-| **F3: Multi-User Auth + TOTP** | Per-user accounts with Argon2id hashing, TOTP MFA, RBAC (admin/operator/viewer), audit logging, invitation system. | Planned |
-| **F10: Safe Action Controls** | Replace read-only terminal with curated action grid. Predefined commands, `execFile` execution, streaming output, role gating. | Planned |
+| **F1: SSE Streaming** | Replace polling with Server-Sent Events. Event bus, filesystem watchers, system metrics poller, 5 SSE endpoints, `useSSE` client hook. | Done |
+| **F3: Multi-User Auth + TOTP** | Per-user accounts with Argon2id hashing, TOTP MFA, RBAC (admin/operator/viewer), audit logging, invitation system. | Done |
+| **F10: Safe Action Controls** | Replace read-only terminal with curated action grid. Predefined commands, `execFile` execution, streaming output, role gating. | Done |
 
 ## Phase 2: Control Plane (Weeks 4-6)
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| **F5: Docker Management** | Container list, start/stop/restart, streaming logs, image list, disk usage. Raw HTTP over Unix socket (no SDK). Graceful degradation. | Planned |
-| **F2: Agent Lifecycle Control** | Start/stop/restart agents via gateway API. Message injection. Approval gates with auto-deny timeout. Model hot-swap. | Planned |
-| **F6: Alerting Engine** | Rules engine with 10-second eval loop. Metric resolvers for CPU, RAM, cost, agent idle, cron, gateway. Multi-channel delivery (in-app, webhook, Telegram, email). | Planned |
+| **F5: Docker Management** | Remote Docker host support via `DOCKER_HOST`. Container list, start/stop/restart, streaming logs, image list, disk usage. Raw HTTP over Unix socket or TCP (no SDK). Graceful degradation with 3-state detection. | Done |
+| **F2: Agent Lifecycle Control** | Start/stop/restart agents via gateway API. Message injection. Approval gates with auto-deny timeout. Model hot-swap. Shared rate limiter (10/min per user). | Done |
+| **F6: Alerting Engine** | Rules engine with 10-second eval loop. Cached metric resolvers for CPU, RAM, disk, cost, gateway. Multi-channel delivery (in-app, webhook, Telegram, email). SQLite history with 10K rotation. | Done |
 
 ## Phase 3: Intelligence (Weeks 7-9)
 
