@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import type { Role } from "@/lib/auth/roles";
 
 export interface AuthUser {
   userId: string;
   username: string;
-  role: "admin" | "operator" | "viewer";
+  role: Role;
   totpEnabled: boolean;
 }
 

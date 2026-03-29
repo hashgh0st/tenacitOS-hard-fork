@@ -1,41 +1,4 @@
-import { eventBus } from '@/lib/events/bus';
-import type { Notification } from '@/lib/events/bus';
+import { createSSEHandler } from '@/lib/events/sse';
 
 export const dynamic = 'force-dynamic';
-
-export async function GET(request: Request) {
-  const encoder = new TextEncoder();
-
-  const stream = new ReadableStream({
-    start(controller) {
-      const handler = (data: Notification) => {
-        try {
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify(data)}\n\n`),
-          );
-        } catch {
-          // Connection may have closed — ignore encoding errors
-        }
-      };
-
-      eventBus.on('notification:new', handler);
-
-      request.signal.addEventListener('abort', () => {
-        eventBus.off('notification:new', handler);
-        try {
-          controller.close();
-        } catch {
-          // Already closed
-        }
-      });
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    },
-  });
-}
+export const GET = createSSEHandler('notification:new');

@@ -14,7 +14,20 @@
       "Bash(rsync -av --exclude='.git' .tmp-upstream/ /Users/dak/Projects/tenacitOS-fork/)",
       "Bash(git init:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
+      "Bash(git remote:*)",
+      "Bash(npm install:*)",
+      "Bash(npx vitest:*)",
+      "Bash(git push:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(git checkout:*)",
+      "Bash(mkdir -p /Users/dak/Projects/tenacitOS-fork/src/lib/events)",
+      "Bash(mkdir -p /Users/dak/Projects/tenacitOS-fork/tests/unit/events)",
+      "Bash(npx tsc:*)",
+      "Bash(ls:*)",
+      "Bash(ls \"/Users/dak/Projects/tenacitOS-fork/src/app/\\(dashboard\\)/actions/\")",
+      "Bash(git merge:*)"
     ]
   }
 }

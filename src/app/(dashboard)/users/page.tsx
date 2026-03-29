@@ -15,18 +15,17 @@ import {
   ToggleRight,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import type { Role } from "@/lib/auth/roles";
 
 interface UserRecord {
   id: string;
   username: string;
-  role: string;
+  role: Role;
   totpEnabled: boolean;
   createdAt: string;
   lastLogin: string | null;
   isActive: boolean;
 }
-
-type Role = "admin" | "operator" | "viewer";
 
 export default function UsersPage() {
   const { user: currentUser, loading: authLoading } = useAuth();

@@ -25,24 +25,33 @@ async function handleGet(
   }
 
   const encoder = new TextEncoder();
+  const outputEvent = `action:output:${executionId}`;
+  const completeEvent = `action:complete:${executionId}`;
+
+  // Hoisted so both start() and cancel() can access them
+  let onOutput: ((data: string) => void) | null = null;
+  let onComplete: ((data: { status: string; exitCode?: number; output?: string }) => void) | null = null;
+
+  function cleanup() {
+    if (onOutput) eventBus.off(outputEvent, onOutput);
+    if (onComplete) eventBus.off(completeEvent, onComplete);
+    onOutput = null;
+    onComplete = null;
+  }
 
   const stream = new ReadableStream({
     start(controller) {
-      const outputEvent = `action:output:${executionId}`;
-      const completeEvent = `action:complete:${executionId}`;
-
-      function onOutput(data: string) {
+      onOutput = (data: string) => {
         try {
           controller.enqueue(
             encoder.encode(`event: output\ndata: ${JSON.stringify(data)}\n\n`),
           );
         } catch {
-          // Stream may have been closed
           cleanup();
         }
-      }
+      };
 
-      function onComplete(data: { status: string; exitCode?: number; output?: string }) {
+      onComplete = (data: { status: string; exitCode?: number; output?: string }) => {
         try {
           controller.enqueue(
             encoder.encode(`event: complete\ndata: ${JSON.stringify(data)}\n\n`),
@@ -52,28 +61,17 @@ async function handleGet(
           // Stream may have been closed
         }
         cleanup();
-      }
-
-      function cleanup() {
-        eventBus.off(outputEvent, onOutput);
-        eventBus.off(completeEvent, onComplete);
-      }
+      };
 
       eventBus.on(outputEvent, onOutput);
       eventBus.on(completeEvent, onComplete);
 
-      // Send initial connection event
       controller.enqueue(
         encoder.encode(`event: connected\ndata: ${JSON.stringify({ executionId })}\n\n`),
       );
-
-      // If the stream is cancelled (client disconnects), clean up
-      // Note: This is handled by the cancel() method below
     },
     cancel() {
-      // Clean up all listeners for this execution
-      eventBus.removeAllListeners(`action:output:${executionId}`);
-      eventBus.removeAllListeners(`action:complete:${executionId}`);
+      cleanup();
     },
   });
 

@@ -6,7 +6,7 @@
  * or calls the handler with an AuthContext on success.
  */
 import { validateSession } from '@/lib/auth/session';
-import { hasPermission, type Role } from '@/lib/auth/roles';
+import { hasPermission, isValidRole, type Role } from '@/lib/auth/roles';
 import { logAudit } from '@/lib/auth/audit';
 
 export type AuthContext = {
@@ -25,7 +25,7 @@ interface WithAuthOptions {
   requiredRole?: Role;
 }
 
-function getClientIp(request: Request): string {
+export function getClientIp(request: Request): string {
   const headers = new Headers(request.headers);
   return (
     headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
@@ -63,7 +63,6 @@ export function withAuth(
   return async (request: Request, context: { params?: Record<string, string> }) => {
     const ip = getClientIp(request);
 
-    // Extract session token from cookie
     const token = getSessionToken(request);
     if (!token) {
       logAudit({
@@ -80,7 +79,6 @@ export function withAuth(
       );
     }
 
-    // Validate session against database
     const session = validateSession(token);
     if (!session) {
       logAudit({
@@ -97,13 +95,26 @@ export function withAuth(
       );
     }
 
+    if (!isValidRole(session.role)) {
+      logAudit({
+        username: session.username,
+        action: 'auth.rejected',
+        details: { reason: 'invalid_session_role', role: session.role },
+        ipAddress: ip,
+        severity: 'critical',
+      });
+
+      return Response.json(
+        { error: 'Unauthorized', message: 'Invalid session role' },
+        { status: 401 },
+      );
+    }
+
     const auth: AuthContext = {
       userId: session.userId,
       username: session.username,
-      role: session.role as Role,
+      role: session.role,
     };
-
-    // Check role permission if required
     if (options?.requiredRole && !hasPermission(auth.role, options.requiredRole)) {
       logAudit({
         userId: auth.userId,

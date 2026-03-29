@@ -103,7 +103,7 @@ async function collectNetwork(): Promise<{ rx: number; tx: number } | null> {
     const dtSec = (now - prevNetBytes.ts) / 1000;
     const result =
       dtSec > 0
-        ? { rx: Math.max(0, rx - prevNetBytes.rx), tx: Math.max(0, tx - prevNetBytes.tx) }
+        ? { rx: Math.max(0, (rx - prevNetBytes.rx) / dtSec), tx: Math.max(0, (tx - prevNetBytes.tx) / dtSec) }
         : { rx: 0, tx: 0 };
     prevNetBytes = { rx, tx, ts: now };
     return result;

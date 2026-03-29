@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 
 export type SSEStatus = 'connecting' | 'connected' | 'error';
 
@@ -137,6 +137,8 @@ export function useSSE<T>(endpoint: string): UseSSEResult<T> {
 
   useEffect(() => {
     unmountedRef.current = false;
+    failCountRef.current = 0;
+    backoffRef.current = INITIAL_BACKOFF_MS;
     connect();
 
     return () => {
@@ -146,5 +148,5 @@ export function useSSE<T>(endpoint: string): UseSSEResult<T> {
     };
   }, [connect, clearTimers, closeEventSource]);
 
-  return { data, error, status };
+  return useMemo(() => ({ data, error, status }), [data, error, status]);
 }

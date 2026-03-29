@@ -198,8 +198,10 @@ describe('Pollers', () => {
 
       const second = await _collectNetwork();
       expect(second).not.toBeNull();
-      expect(second!.rx).toBe(100000);
-      expect(second!.tx).toBe(50000);
+      // Delta is 100000 bytes over 2 seconds = 50000 bytes/sec
+      expect(second!.rx).toBe(50000);
+      // Delta is 50000 bytes over 2 seconds = 25000 bytes/sec
+      expect(second!.tx).toBe(25000);
     });
 
     it('returns null on macOS (no /proc/net/dev)', async () => {
