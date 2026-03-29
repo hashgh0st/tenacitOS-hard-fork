@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, Calendar, PieChart } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, PieChart as RePieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { useCostData } from "@/components/shared/SSEProvider";
 
 interface CostData {
   today: number;
@@ -30,11 +31,27 @@ export default function CostsPage() {
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState<"7d" | "30d" | "90d">("30d");
 
+  // SSE stream for real-time cost updates
+  const { data: sseCost } = useCostData();
+
+  // Initial fetch (and re-fetch when timeframe changes)
   useEffect(() => {
     fetchCostData();
-    const interval = setInterval(fetchCostData, 60000); // Update every minute
-    return () => clearInterval(interval);
-  }, [timeframe]);
+  }, [timeframe]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Merge SSE cost snapshots into the page-level CostData
+  useEffect(() => {
+    if (sseCost && costData) {
+      setCostData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          today: sseCost.periodCost,
+          thisMonth: sseCost.totalCost,
+        };
+      });
+    }
+  }, [sseCost]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchCostData = async () => {
     try {

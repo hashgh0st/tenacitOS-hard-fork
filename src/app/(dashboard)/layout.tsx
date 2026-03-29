@@ -1,6 +1,7 @@
 "use client";
 
 import { Dock, TopBar, StatusBar } from "@/components/TenacitOS";
+import { SSEProvider } from "@/components/shared/SSEProvider";
 
 export default function DashboardLayout({
   children,
@@ -11,7 +12,7 @@ export default function DashboardLayout({
     <div className="tenacios-shell" style={{ minHeight: "100vh" }}>
       <Dock />
       <TopBar />
-      
+
       <main
         style={{
           marginLeft: "68px", // Width of dock
@@ -21,7 +22,7 @@ export default function DashboardLayout({
           padding: "24px",
         }}
       >
-        {children}
+        <SSEProvider>{children}</SSEProvider>
       </main>
 
       <StatusBar />
