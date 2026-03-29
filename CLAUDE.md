@@ -27,7 +27,7 @@ TenacitOS-X is a hard fork of carlosazaustre/tenacitOS. It transforms a read-onl
 ### Styling
 - Tailwind v4 utility classes only
 - No new CSS files — everything goes through Tailwind
-- Responsive breakpoints: `sm` (<640px), `md` (640-1024px), `lg` (>1024px)
+- Responsive breakpoints (min-width): `sm` (>=640px), `md` (>=768px), `lg` (>=1024px)
 
 ### Security
 - **Always use `execFile`, never `exec`** — no shell expansion, no user input interpolation

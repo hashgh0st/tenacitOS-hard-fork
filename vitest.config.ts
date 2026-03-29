@@ -1,21 +1,17 @@
 import { defineConfig } from 'vitest/config';
-import path from 'path';
 
 export default defineConfig({
+  resolve: {
+    tsconfigPaths: true,
+  },
   test: {
-    environment: 'happy-dom',
-    globals: true,
+    environment: 'node',
     include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
     coverage: {
       provider: 'v8',
-      include: ['src/lib/**', 'src/hooks/**', 'src/config/**'],
-      exclude: ['src/components/**', 'src/app/**'],
+      include: ['src/lib/**', 'src/hooks/**', 'src/config/**', 'src/app/api/**'],
+      exclude: ['src/components/**', 'src/app/(dashboard)/**'],
     },
     setupFiles: ['tests/setup.ts'],
-  },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
   },
 });
