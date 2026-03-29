@@ -1,0 +1,7 @@
+{
+  "lastUpdated": "2026-01-01",
+  "skills": [
+    {"name": "weather", "location": "system", "description": "Get current weather and forecasts"},
+    {"name": "web-search", "location": "system", "description": "Search the web using Brave API"}
+  ]
+}

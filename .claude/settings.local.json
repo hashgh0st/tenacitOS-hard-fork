@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(find /Users/dak/Projects/tenacitOS-fork -type f \\\\\\(-name *.json -o -name *.yaml -o -name *.yml -o -name *.ts -o -name *.tsx -o -name .env* -o -name CLAUDE* \\\\\\))",
+      "WebFetch(domain:api.github.com)",
+      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); print\\(data[0][''''text''''][:8000]\\)\")",
+      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); text=data[0][''''text'''']; print\\(text[8000:16000]\\)\")",
+      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); text=data[0][''''text'''']; print\\(text[16000:24000]\\)\")",
+      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); text=data[0][''''text'''']; print\\(text[24000:32000]\\)\")",
+      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); text=data[0][''''text'''']; print\\(text[32000:]\\)\")",
+      "Bash(git clone:*)",
+      "Bash(rsync -av --exclude='.git' .tmp-upstream/ /Users/dak/Projects/tenacitOS-fork/)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
