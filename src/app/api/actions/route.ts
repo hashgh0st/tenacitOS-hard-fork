@@ -1,160 +1,229 @@
 /**
- * Quick Actions API
- * POST /api/actions  body: { action }
- * Available actions: git-status, restart-gateway, clear-temp, usage-stats, heartbeat
+ * Safe Actions API
+ * POST /api/actions  body: { actionId: string }
+ *
+ * SECURITY: Uses execFile (no shell expansion). Only predefined actions
+ * from the registry are accepted. No user input in commands or args.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { logActivity } from '@/lib/activities-db';
+import { execFile } from 'child_process';
+import { randomUUID } from 'crypto';
+import { getActionById } from '@/config/actions';
+import { withAuth, type AuthContext } from '@/lib/auth/withAuth';
+import { hasPermission } from '@/lib/auth/roles';
+import { logAudit } from '@/lib/auth/audit';
+import { eventBus } from '@/lib/events/bus';
 
-const execAsync = promisify(exec);
-
-const WORKSPACE = process.env.OPENCLAW_DIR ? `${process.env.OPENCLAW_DIR}/workspace` : '/root/.openclaw/workspace';
-
-interface ActionResult {
-  action: string;
-  status: 'success' | 'error';
-  output: string;
-  duration_ms: number;
+export interface ActionResult {
+  actionId: string;
+  status: 'success' | 'error' | 'streaming';
+  output?: string;
+  duration_ms?: number;
   timestamp: string;
+  executionId?: string;
 }
 
-async function runAction(action: string): Promise<ActionResult> {
+/**
+ * Execute a non-streaming action synchronously using execFile.
+ */
+function executeAction(
+  command: string,
+  args: string[],
+  timeout_ms: number,
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = execFile(
+      command,
+      args,
+      { timeout: timeout_ms, maxBuffer: 2 * 1024 * 1024 },
+      (error, stdout, stderr) => {
+        if (error) {
+          // If the process was killed due to timeout, surface that clearly
+          if (error.killed) {
+            reject(new Error(`Action timed out after ${timeout_ms}ms (SIGKILL)`));
+            return;
+          }
+          // Include stderr/stdout in error for context
+          reject(
+            new Error(
+              error.message + (stderr ? `\n${stderr}` : '') + (stdout ? `\n${stdout}` : ''),
+            ),
+          );
+          return;
+        }
+        resolve({ stdout: stdout ?? '', stderr: stderr ?? '' });
+      },
+    );
+
+    // Safety: ensure the process is killed on timeout even if execFile misses it
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+    }, timeout_ms + 500);
+
+    child.on('close', () => clearTimeout(timer));
+  });
+}
+
+/**
+ * Execute a streaming action in the background, emitting output to the event bus.
+ */
+function executeStreamingAction(
+  executionId: string,
+  command: string,
+  args: string[],
+  timeout_ms: number,
+): void {
+  const child = execFile(command, args, { timeout: timeout_ms, maxBuffer: 2 * 1024 * 1024 });
+
+  const timer = setTimeout(() => {
+    child.kill('SIGKILL');
+    eventBus.emit(`action:complete:${executionId}`, {
+      status: 'error',
+      output: `Action timed out after ${timeout_ms}ms (SIGKILL)`,
+    });
+  }, timeout_ms + 500);
+
+  child.stdout?.on('data', (chunk: Buffer) => {
+    eventBus.emit(`action:output:${executionId}`, chunk.toString());
+  });
+
+  child.stderr?.on('data', (chunk: Buffer) => {
+    eventBus.emit(`action:output:${executionId}`, chunk.toString());
+  });
+
+  child.on('close', (code) => {
+    clearTimeout(timer);
+    eventBus.emit(`action:complete:${executionId}`, {
+      status: code === 0 ? 'success' : 'error',
+      exitCode: code,
+    });
+  });
+
+  child.on('error', (err) => {
+    clearTimeout(timer);
+    eventBus.emit(`action:complete:${executionId}`, {
+      status: 'error',
+      output: err.message,
+    });
+  });
+}
+
+async function handlePost(
+  request: Request,
+  _context: { params?: Record<string, string> },
+  auth: AuthContext,
+): Promise<Response> {
   const start = Date.now();
   const timestamp = new Date().toISOString();
 
+  let body: { actionId?: string };
   try {
-    let output = '';
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
 
-    switch (action) {
-      case 'git-status': {
-        // Find all git repos in workspace and get their status
-        const { stdout: dirs } = await execAsync(`find "${WORKSPACE}" -maxdepth 2 -name ".git" -type d 2>/dev/null | head -10`);
-        const repoPaths = dirs.trim().split('\n').filter(Boolean).map((d) => d.replace('/.git', ''));
+  const { actionId } = body;
+  if (!actionId || typeof actionId !== 'string') {
+    return NextResponse.json({ error: 'Missing or invalid actionId' }, { status: 400 });
+  }
 
-        const results: string[] = [];
-        for (const repoPath of repoPaths) {
-          const name = repoPath.split('/').pop() || repoPath;
-          try {
-            const { stdout: status } = await execAsync(`cd "${repoPath}" && git status --short && git log --oneline -3 2>&1`);
-            results.push(`📁 ${name}:\n${status || '(clean)'}`);
-          } catch {
-            results.push(`📁 ${name}: (error reading git status)`);
-          }
-        }
-        output = results.length ? results.join('\n\n') : 'No git repos found in workspace';
-        break;
-      }
+  // Look up action in the registry — never accept arbitrary commands
+  const action = getActionById(actionId);
+  if (!action) {
+    return NextResponse.json({ error: `Unknown action: ${actionId}` }, { status: 400 });
+  }
 
-      case 'restart-gateway': {
-        const { stdout, stderr } = await execAsync('systemctl restart openclaw-gateway 2>&1 || echo "Service not found"');
-        output = stdout || stderr || 'Restart command executed';
-        // Also check status
-        try {
-          const { stdout: status } = await execAsync('systemctl is-active openclaw-gateway 2>&1 || echo "unknown"');
-          output += `\nStatus: ${status.trim()}`;
-        } catch {}
-        break;
-      }
+  // Role enforcement
+  if (!hasPermission(auth.role, action.role)) {
+    logAudit({
+      userId: auth.userId,
+      username: auth.username,
+      action: 'action.forbidden',
+      target: actionId,
+      details: { userRole: auth.role, requiredRole: action.role },
+      severity: 'warning',
+    });
+    return NextResponse.json(
+      { error: 'Forbidden', message: `Requires ${action.role} role or higher` },
+      { status: 403 },
+    );
+  }
 
-      case 'clear-temp': {
-        const commands = [
-          'find /tmp -maxdepth 1 -type f -mtime +1 -delete 2>/dev/null; echo "Cleaned /tmp"',
-          `find "${WORKSPACE}" -name "*.tmp" -o -name "*.bak" | head -20 | xargs rm -f 2>/dev/null; echo "Cleaned tmp/bak files"`,
-          'find /root/.pm2/logs -name "*.log" -size +50M -exec truncate -s 10M {} \\; 2>/dev/null; echo "Trimmed large PM2 logs"',
-        ];
-        const results = await Promise.all(commands.map((cmd) => execAsync(cmd).then((r) => r.stdout).catch((e) => e.message)));
-        output = results.join('\n');
-        break;
-      }
+  // Log action execution
+  logAudit({
+    userId: auth.userId,
+    username: auth.username,
+    action: 'action.execute',
+    target: actionId,
+    details: { actionName: action.name, destructive: action.destructive },
+    severity: action.destructive ? 'warning' : 'info',
+  });
 
-      case 'usage-stats': {
-        const { stdout: du } = await execAsync(`du -sh "${WORKSPACE}" 2>/dev/null || echo "N/A"`);
-        const { stdout: df } = await execAsync('df -h / | tail -1');
-        const { stdout: mem } = await execAsync('free -h | head -2');
-        const { stdout: cpu } = await execAsync("top -bn1 | grep 'Cpu(s)' | head -1");
-        const { stdout: uptime } = await execAsync('uptime -p');
-        output = `Workspace: ${du.trim()}\n\nDisk: ${df.trim()}\n\nMemory:\n${mem.trim()}\n\nCPU: ${cpu.trim()}\n\nUptime: ${uptime.trim()}`;
-        break;
-      }
+  // ── Streaming execution ─────────────────────────────────────────────────
+  if (action.stream_output) {
+    const executionId = randomUUID();
 
-      case 'heartbeat': {
-        // Check all critical services
-        const services = ['mission-control'];
-        const pm2services = ['classvault', 'content-vault', 'brain'];
-        const results: string[] = [];
+    executeStreamingAction(executionId, action.command, [...action.args], action.timeout_ms);
 
-        for (const svc of services) {
-          const { stdout } = await execAsync(`systemctl is-active ${svc} 2>/dev/null || echo "inactive"`);
-          const status = stdout.trim();
-          results.push(`${status === 'active' ? '✅' : '❌'} ${svc}: ${status}`);
-        }
+    const result: ActionResult = {
+      actionId,
+      status: 'streaming',
+      executionId,
+      timestamp,
+    };
+    return NextResponse.json(result);
+  }
 
-        try {
-          const { stdout: pm2 } = await execAsync('pm2 jlist 2>/dev/null');
-          const pm2list = JSON.parse(pm2);
-          for (const svc of pm2services) {
-            const proc = pm2list.find((p: { name: string }) => p.name === svc);
-            const status = proc?.pm2_env?.status || 'not found';
-            results.push(`${status === 'online' ? '✅' : '❌'} ${svc} (pm2): ${status}`);
-          }
-        } catch {
-          results.push('⚠️ PM2: could not connect');
-        }
-
-        // Ping the main site
-        try {
-          const { stdout: ping } = await execAsync('curl -s -o /dev/null -w "%{http_code}" --max-time 5 https://tenacitas.cazaustre.dev');
-          results.push(`\n🌐 tenacitas.cazaustre.dev: HTTP ${ping.trim()}`);
-        } catch {
-          results.push('\n🌐 tenacitas.cazaustre.dev: unreachable');
-        }
-
-        output = results.join('\n');
-        break;
-      }
-
-      case 'npm-audit': {
-        const { stdout, stderr } = await execAsync(`cd "${WORKSPACE}/mission-control" && npm audit --json 2>/dev/null | node -e "const d=require('fs').readFileSync('/dev/stdin','utf-8');const j=JSON.parse(d);console.log('Vulnerabilities: '+JSON.stringify(j.metadata?.vulnerabilities||{}))" 2>&1`).catch((e) => ({ stdout: '', stderr: e.message }));
-        output = stdout || stderr || 'Audit completed';
-        break;
-      }
-
-      default:
-        throw new Error(`Unknown action: ${action}`);
-    }
-
+  // ── Synchronous execution ───────────────────────────────────────────────
+  try {
+    const { stdout, stderr } = await executeAction(
+      action.command,
+      [...action.args],
+      action.timeout_ms,
+    );
     const duration_ms = Date.now() - start;
-    logActivity('command', `Quick action: ${action}`, 'success', { duration_ms, metadata: { action } });
+    const output = stdout + (stderr ? `\nSTDERR:\n${stderr}` : '');
 
-    return { action, status: 'success', output, duration_ms, timestamp };
+    logAudit({
+      userId: auth.userId,
+      username: auth.username,
+      action: 'action.complete',
+      target: actionId,
+      details: { status: 'success', duration_ms },
+      severity: 'info',
+    });
+
+    const result: ActionResult = {
+      actionId,
+      status: 'success',
+      output,
+      duration_ms,
+      timestamp,
+    };
+    return NextResponse.json(result);
   } catch (err) {
     const duration_ms = Date.now() - start;
     const errMsg = err instanceof Error ? err.message : String(err);
-    logActivity('command', `Quick action failed: ${action}`, 'error', { duration_ms, metadata: { action, error: errMsg } });
-    return { action, status: 'error', output: errMsg, duration_ms, timestamp };
-  }
-}
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { action } = body;
+    logAudit({
+      userId: auth.userId,
+      username: auth.username,
+      action: 'action.complete',
+      target: actionId,
+      details: { status: 'error', duration_ms, error: errMsg },
+      severity: 'warning',
+    });
 
-    if (!action) {
-      return NextResponse.json({ error: 'Missing action' }, { status: 400 });
-    }
-
-    const validActions = ['git-status', 'restart-gateway', 'clear-temp', 'usage-stats', 'heartbeat', 'npm-audit'];
-    if (!validActions.includes(action)) {
-      return NextResponse.json({ error: `Unknown action. Valid: ${validActions.join(', ')}` }, { status: 400 });
-    }
-
-    const result = await runAction(action);
+    const result: ActionResult = {
+      actionId,
+      status: 'error',
+      output: errMsg,
+      duration_ms,
+      timestamp,
+    };
     return NextResponse.json(result);
-  } catch (error) {
-    console.error('[actions] Error:', error);
-    return NextResponse.json({ error: 'Action failed' }, { status: 500 });
   }
 }
+
+export const POST = withAuth(handlePost);
