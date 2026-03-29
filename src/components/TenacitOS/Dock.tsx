@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Home,
   Monitor,
+  Container,
   FolderOpen,
   Brain,
   Bot,
@@ -23,6 +24,7 @@ import {
 const dockItems = [
   { href: "/", label: "Dashboard", icon: Home },
   { href: "/system", label: "System Monitor", icon: Monitor },
+  { href: "/docker", label: "Docker", icon: Container },
   { href: "/files", label: "Files", icon: FolderOpen },
   { href: "/memory", label: "Memory", icon: Brain },
   { href: "/agents", label: "Agents", icon: Bot },

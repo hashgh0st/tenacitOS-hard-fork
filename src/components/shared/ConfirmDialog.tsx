@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 interface ConfirmDialogProps {
   title: string;
   message: string;
@@ -7,6 +9,10 @@ interface ConfirmDialogProps {
   cancelLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
+  /** When true, requires typing destructiveTarget to enable confirm. */
+  destructive?: boolean;
+  /** The string the user must type to confirm a destructive action. */
+  destructiveTarget?: string;
 }
 
 export function ConfirmDialog({
@@ -16,7 +22,12 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   onConfirm,
   onCancel,
+  destructive = false,
+  destructiveTarget = "",
 }: ConfirmDialogProps) {
+  const [typedValue, setTypedValue] = useState("");
+  const confirmEnabled = !destructive || typedValue === destructiveTarget;
+
   return (
     <div
       style={{
@@ -58,6 +69,43 @@ export function ConfirmDialog({
         >
           {message}
         </p>
+
+        {destructive && destructiveTarget && (
+          <div style={{ marginBottom: "1.5rem" }}>
+            <label
+              style={{
+                display: "block",
+                color: "var(--text-secondary)",
+                fontSize: "0.85rem",
+                marginBottom: "0.5rem",
+              }}
+            >
+              Type{" "}
+              <strong style={{ color: "var(--text-primary)" }}>
+                {destructiveTarget}
+              </strong>{" "}
+              to confirm
+            </label>
+            <input
+              type="text"
+              value={typedValue}
+              onChange={(e) => setTypedValue(e.target.value)}
+              placeholder={destructiveTarget}
+              style={{
+                width: "100%",
+                padding: "0.5rem 0.75rem",
+                borderRadius: "0.5rem",
+                border: "1px solid var(--border)",
+                backgroundColor: "var(--card-elevated)",
+                color: "var(--text-primary)",
+                fontSize: "0.9rem",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+        )}
+
         <div
           style={{
             display: "flex",
@@ -80,14 +128,18 @@ export function ConfirmDialog({
           </button>
           <button
             onClick={onConfirm}
+            disabled={!confirmEnabled}
             style={{
               padding: "0.5rem 1rem",
               borderRadius: "0.5rem",
-              background: "var(--error, #ef4444)",
-              color: "#fff",
+              background: confirmEnabled
+                ? "var(--error, #ef4444)"
+                : "var(--card-elevated)",
+              color: confirmEnabled ? "#fff" : "var(--text-muted)",
               border: "none",
-              cursor: "pointer",
+              cursor: confirmEnabled ? "pointer" : "not-allowed",
               fontWeight: 600,
+              opacity: confirmEnabled ? 1 : 0.6,
             }}
           >
             {confirmLabel}

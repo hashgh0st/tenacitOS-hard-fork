@@ -8,6 +8,7 @@ import type {
   ActivityEntry,
   Notification,
   CostSnapshot,
+  DockerStatusUpdate,
 } from '@/lib/events/bus';
 
 // ── Context shape ───────────────────────────────────────────────────────────
@@ -18,6 +19,7 @@ interface SSEContextValue {
   activity: UseSSEResult<ActivityEntry>;
   notifications: UseSSEResult<Notification>;
   costs: UseSSEResult<CostSnapshot>;
+  docker: UseSSEResult<DockerStatusUpdate>;
 }
 
 const SSEContext = createContext<SSEContextValue | null>(null);
@@ -35,10 +37,11 @@ export function SSEProvider({ children }: { children: React.ReactNode }) {
   const activity = useSSE<ActivityEntry>('/api/stream/activity');
   const notifications = useSSE<Notification>('/api/stream/notifications');
   const costs = useSSE<CostSnapshot>('/api/stream/costs');
+  const docker = useSSE<DockerStatusUpdate>('/api/stream/docker');
 
   const value = useMemo<SSEContextValue>(
-    () => ({ system, agents, activity, notifications, costs }),
-    [system, agents, activity, notifications, costs],
+    () => ({ system, agents, activity, notifications, costs, docker }),
+    [system, agents, activity, notifications, costs, docker],
   );
 
   return <SSEContext.Provider value={value}>{children}</SSEContext.Provider>;
@@ -80,4 +83,9 @@ export function useNotifications(): UseSSEResult<Notification> {
 /** Latest cost snapshot from the SSE stream. */
 export function useCostData(): UseSSEResult<CostSnapshot> {
   return useSSEContext().costs;
+}
+
+/** Latest Docker status update from the SSE stream. */
+export function useDockerStatus(): UseSSEResult<DockerStatusUpdate> {
+  return useSSEContext().docker;
 }
