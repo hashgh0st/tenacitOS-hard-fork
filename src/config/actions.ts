@@ -75,19 +75,6 @@ export const ACTIONS: readonly ActionDefinition[] = [
     timeout_ms: 60_000,
     stream_output: true,
   },
-  {
-    id: 'export-costs',
-    name: 'Export Costs',
-    description: 'Export cost data as CSV',
-    category: 'data',
-    icon: 'DollarSign',
-    command: 'npx',
-    args: ['tsx', 'scripts/export-costs.ts'],
-    role: 'viewer',
-    destructive: false,
-    timeout_ms: 30_000,
-    stream_output: false,
-  },
 
   // ── System ────────────────────────────────────────────────────────────────
   {
@@ -151,7 +138,7 @@ export const ACTIONS: readonly ActionDefinition[] = [
     category: 'maintenance',
     icon: 'Archive',
     command: 'tar',
-    args: ['-czf', 'backups/data-backup.tar.gz', 'data'],
+    args: ['-czf', 'data-backup.tar.gz', 'data'],
     role: 'operator',
     destructive: false,
     timeout_ms: 60_000,

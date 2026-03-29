@@ -13,14 +13,13 @@ export interface UseSSEResult<T> {
 const MAX_BACKOFF_MS = 30_000;
 const INITIAL_BACKOFF_MS = 1_000;
 const MAX_CONSECUTIVE_FAILURES = 3;
-const POLL_INTERVAL_MS = 5_000;
 
 /**
  * Generic SSE client hook.
  *
  * Connects to the given `endpoint` via EventSource.
  * Auto-reconnects with exponential backoff (1s -> 2s -> 4s -> 8s, max 30s).
- * After 3 consecutive failures, falls back to fetch-based polling every 5s.
+ * After repeated failures, surfaces an error but keeps retrying SSE.
  * Cleans up on unmount.
  */
 export function useSSE<T>(endpoint: string): UseSSEResult<T> {
@@ -33,17 +32,12 @@ export function useSSE<T>(endpoint: string): UseSSEResult<T> {
   const failCountRef = useRef(0);
   const backoffRef = useRef(INITIAL_BACKOFF_MS);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const unmountedRef = useRef(false);
 
   const clearTimers = useCallback(() => {
     if (reconnectTimerRef.current !== null) {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
-    }
-    if (pollTimerRef.current !== null) {
-      clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
     }
   }, []);
 
@@ -54,35 +48,8 @@ export function useSSE<T>(endpoint: string): UseSSEResult<T> {
     }
   }, []);
 
-  // Fetch-based polling fallback
-  const startPolling = useCallback(() => {
-    if (unmountedRef.current) return;
-
-    const poll = async () => {
-      try {
-        const res = await fetch(endpoint);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = (await res.json()) as T;
-        if (!unmountedRef.current) {
-          setData(json);
-          setError(null);
-          setStatus('connected');
-        }
-      } catch (err) {
-        if (!unmountedRef.current) {
-          setError(err instanceof Error ? err : new Error(String(err)));
-          setStatus('error');
-        }
-      }
-    };
-
-    // Poll immediately, then every POLL_INTERVAL_MS
-    poll();
-    pollTimerRef.current = setInterval(poll, POLL_INTERVAL_MS);
-  }, [endpoint]);
-
   // Connect (or reconnect) via EventSource
-  const connect = useCallback(() => {
+  const connect = useCallback(function connectEventSource() {
     if (unmountedRef.current) return;
 
     closeEventSource();
@@ -118,22 +85,15 @@ export function useSSE<T>(endpoint: string): UseSSEResult<T> {
       closeEventSource();
       failCountRef.current += 1;
 
-      if (failCountRef.current >= MAX_CONSECUTIVE_FAILURES) {
-        // Fall back to polling
-        setError(new Error('SSE failed — falling back to polling'));
-        setStatus('error');
-        startPolling();
-        return;
-      }
-
       // Exponential backoff reconnect
       const delay = Math.min(backoffRef.current, MAX_BACKOFF_MS);
       backoffRef.current = delay * 2;
-      setStatus('connecting');
+      setError(new Error('SSE connection lost; retrying'));
+      setStatus(failCountRef.current >= MAX_CONSECUTIVE_FAILURES ? 'error' : 'connecting');
 
-      reconnectTimerRef.current = setTimeout(connect, delay);
+      reconnectTimerRef.current = setTimeout(connectEventSource, delay);
     };
-  }, [endpoint, closeEventSource, startPolling]);
+  }, [endpoint, closeEventSource]);
 
   useEffect(() => {
     unmountedRef.current = false;

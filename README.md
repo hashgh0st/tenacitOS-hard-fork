@@ -1,27 +1,20 @@
 # TenacitOS-X -- OpenClaw Mission Control
 
-A real-time operations platform for [OpenClaw](https://openclaw.ai) AI agent fleets. Monitor, control, and manage your agents from a single dashboard. Built with Next.js 16, React 19, and Tailwind CSS v4.
+A Phase 1 real-time operations dashboard for [OpenClaw](https://openclaw.ai) agent workspaces. Built with Next.js 16, React 19, and Tailwind CSS v4.
 
-> Hard fork of [carlosazaustre/tenacitOS](https://github.com/carlosazaustre/tenacitOS). TenacitOS-X transforms the original read-only monitoring dashboard into a full agent operations platform with real-time streaming, agent lifecycle control, multi-user auth, fleet management, and more.
+> Hard fork of [carlosazaustre/tenacitOS](https://github.com/carlosazaustre/tenacitOS). This fork currently ships Phase 0 and Phase 1 work: real-time SSE delivery, multi-user auth + TOTP, and curated safe action controls. Later control-plane features remain on the roadmap.
 
 ---
 
 ## What Changed from Upstream
 
-The original TenacitOS is a solid monitoring dashboard. TenacitOS-X keeps everything that works and adds the operational muscle that production deployments need:
+The original TenacitOS is a solid monitoring dashboard. TenacitOS-X currently extends it with the Phase 1 foundation for secure, real-time operations:
 
 | Upstream TenacitOS | TenacitOS-X |
 |---|---|
 | Polling-based data refresh | Real-time SSE streaming (sub-2s latency) |
 | Read-only terminal | Curated safe-action control panel |
 | Single shared password | Multi-user auth with TOTP MFA and RBAC |
-| Observation only | Full agent lifecycle control (start/stop/restart/message) |
-| No alerting | Configurable threshold alerts with webhook, Telegram, and email delivery |
-| Single host only | Multi-instance fleet monitoring with remote collectors |
-| Desktop layout | Mobile PWA with push notifications |
-| No session depth | Full session replay with tool call traces and file diffs |
-| No Docker visibility | Docker container management panel |
-| No AI assistant | Natural language ops chat powered by your OpenClaw gateway |
 
 ---
 
@@ -41,34 +34,13 @@ The original TenacitOS is a solid monitoring dashboard. TenacitOS-X keeps everyt
 ### New in TenacitOS-X
 
 **Real-Time Streaming**
-Server-Sent Events for system metrics, agent status, activity feed, notifications, and cost counters. Data arrives in the browser within 2 seconds of the underlying event. No more stale dashboards.
-
-**Agent Control Plane**
-Start, stop, and restart agents. Send messages to active sessions. Approve or deny pending agent actions. Hot-swap models at runtime. All actions require confirmation and log to the audit trail.
+Server-Sent Events for system metrics, agent status, activity feed, notifications, and cost counters. The dashboard now updates continuously instead of relying on manual refreshes.
 
 **Multi-User Auth + TOTP MFA**
-Per-user accounts with role-based access (admin, operator, viewer). Optional TOTP two-factor authentication compatible with Google Authenticator, Authy, and 1Password. Argon2id password hashing. Full audit log of every action.
-
-**AI Ops Chat**
-Slide-out chat panel that lets you query your dashboard in natural language. Powered by your local OpenClaw gateway. Ask questions like "what did my agents spend this week?" or "which cron jobs failed today?" and get accurate answers pulled from live dashboard data.
-
-**Docker Management**
-Container list with status, CPU, memory, and port mapping. Start, stop, restart containers. View streaming container logs. Prune stopped containers and dangling images. Gracefully hidden if Docker is not installed.
-
-**Configurable Alerts**
-Set thresholds on cost, CPU, RAM, disk, agent idle time, cron failures, and gateway health. Alerts fire after sustained threshold breaches with configurable cooldowns. Deliver to in-app notifications, webhooks (Slack/Discord), Telegram, or email.
-
-**Session Replay**
-Click into any session to see the full execution trace: every reasoning step, tool call, tool result, and file operation with unified diffs. Search within sessions. Export traces as JSON.
-
-**Fleet Monitoring**
-Run a lightweight collector script on remote VPS instances to push metrics to your central TenacitOS-X dashboard. See all instances on a fleet overview page with aggregate cost tracking. Offline detection when collectors stop reporting.
-
-**Mobile PWA**
-Installable as a Progressive Web App. Offline app shell. Push notifications for alerts. Responsive layouts for all pages. Bottom navigation on mobile. 3D office replaced with a flat agent grid on small screens.
+Per-user accounts with role-based access (admin, operator, viewer). Optional TOTP two-factor authentication compatible with common authenticator apps. Argon2id password hashing and an audit trail are built in.
 
 **Hardened Action Controls**
-The read-only terminal is replaced with a curated grid of safe operational actions: check gateway status, restart gateway, collect usage data, run compaction, view system info, export cost reports, and more. No freeform command input. All actions are predefined in code with role gating.
+The read-only terminal is replaced with a curated grid of safe operational actions such as gateway status checks, restarts, usage collection, system info, disk usage, PM2 inspection, cache clearing, and data backup. No freeform command input. All actions are predefined in code with role gating.
 
 ---
 
@@ -78,7 +50,7 @@ The read-only terminal is replaced with a curated grid of safe operational actio
 - **[OpenClaw](https://openclaw.ai)** installed and running on the same host
 - **PM2** or **systemd** (recommended for production)
 - **Caddy** or another reverse proxy (for HTTPS in production)
-- **Docker** (optional, for Docker management features)
+- **Docker** (optional, for host service visibility where supported)
 
 ---
 
@@ -140,9 +112,9 @@ TenacitOS-X uses a multi-user auth system with three roles:
 
 | Role | Access |
 |---|---|
-| **Admin** | Everything. User management, audit logs, fleet API keys, system settings. |
-| **Operator** | Agent control, approvals, Docker management, alert configuration, all actions. |
-| **Viewer** | Read-only access to all dashboards, logs, and session traces. |
+| **Admin** | Full access, including user management, audit review, and all actions. |
+| **Operator** | Operational dashboards plus non-admin actions. |
+| **Viewer** | Read-only access to dashboards and logs. |
 
 ### Setting Up TOTP (Two-Factor Authentication)
 
@@ -151,63 +123,10 @@ TenacitOS-X uses a multi-user auth system with three roles:
 3. Click "Enable Two-Factor Authentication"
 4. Scan the QR code with your authenticator app
 5. Enter the 6-digit code to confirm
-6. Save your backup codes somewhere safe
 
 ### Inviting Users
 
 Admins can invite new users from the Users page. Each invitation generates a one-time registration link with a pre-assigned role.
-
----
-
-## Fleet Monitoring (Multi-Instance)
-
-To monitor agents running on remote VPS instances:
-
-### On the central dashboard
-
-1. Go to Fleet > API Keys
-2. Generate a new collector API key
-3. Copy the key
-
-### On each remote VPS
-
-```bash
-# Install the collector
-npx tenacitos-collector
-
-# Or set environment variables and run
-TENACITOS_CENTRAL_URL=https://mission-control.yourdomain.com \
-TENACITOS_API_KEY=your-generated-key \
-TENACITOS_INSTANCE_NAME=vps-eu-01 \
-TENACITOS_PUSH_INTERVAL=30 \
-OPENCLAW_DIR=/root/.openclaw \
-npx tenacitos-collector
-```
-
-The collector pushes system metrics, agent status, and cost snapshots to your central dashboard every 30 seconds. If a collector stops reporting, the instance shows as offline after 60 seconds.
-
----
-
-## Alerts
-
-TenacitOS-X ships with built-in alert templates:
-
-- Daily cost exceeds threshold (per-agent and total)
-- CPU sustained above X% for Y minutes
-- RAM / Disk usage above threshold
-- Agent idle for more than X minutes
-- Agent session failed or errored
-- Cron job missed or failed
-- Gateway offline or unreachable
-
-### Notification Channels
-
-- **In-app** -- Notification center with severity-coded alerts
-- **Webhook** -- POST to any URL (Slack, Discord, custom)
-- **Telegram** -- Send to a Telegram chat via bot token
-- **Email** -- SMTP-based delivery
-
-Configure alert rules and channels from the Alerts page in the dashboard.
 
 ---
 
@@ -258,22 +177,6 @@ mission-control.yourdomain.com {
 }
 ```
 
-### PWA Push Notifications
-
-To enable push notifications, generate VAPID keys and add them to `.env.local`:
-
-```bash
-npx web-push generate-vapid-keys
-```
-
-```env
-VAPID_PUBLIC_KEY=your-public-key
-VAPID_PRIVATE_KEY=your-private-key
-VAPID_EMAIL=mailto:admin@yourdomain.com
-```
-
----
-
 ## Project Structure
 
 ```
@@ -281,50 +184,36 @@ mission-control/
 ├── src/
 │   ├── app/
 │   │   ├── (dashboard)/          # Dashboard pages (protected)
-│   │   │   ├── agents/           # Agent dashboard + controls
-│   │   │   ├── approvals/        # Approval gate UI
-│   │   │   ├── alerts/           # Alert rules and history
-│   │   │   ├── audit/            # Audit log viewer (admin)
-│   │   │   ├── docker/           # Docker management
-│   │   │   ├── fleet/            # Multi-instance fleet view
-│   │   │   ├── sessions/         # Session list + replay
 │   │   │   ├── actions/          # Safe action controls
+│   │   │   ├── activity/         # Activity feed + charts
+│   │   │   ├── agents/           # Agent dashboard
+│   │   │   ├── audit/            # Audit log viewer (admin)
+│   │   │   ├── costs/            # Usage and spend pages
+│   │   │   ├── files/            # File browser
+│   │   │   ├── memory/           # Memory browser
+│   │   │   ├── sessions/         # Session list and detail views
 │   │   │   └── users/            # User management (admin)
 │   │   ├── api/                  # API routes
 │   │   │   ├── auth/             # Login, register, TOTP
 │   │   │   ├── stream/           # SSE endpoints
-│   │   │   ├── agents/           # Agent CRUD + control
-│   │   │   ├── chat/             # AI ops chat
-│   │   │   ├── docker/           # Docker API proxy
-│   │   │   ├── alerts/           # Alert CRUD
-│   │   │   ├── collector/        # Fleet ingest
 │   │   │   └── actions/          # Safe action execution
 │   │   ├── login/                # Login page
 │   │   ├── register/             # Registration page
 │   │   ├── setup/                # First-run setup wizard
 │   │   └── office/               # 3D office
 │   ├── components/
+│   │   ├── Actions/              # Action cards and output
 │   │   ├── TenacitOS/            # OS-style UI shell
 │   │   ├── Office3D/             # React Three Fiber 3D office
-│   │   ├── Chat/                 # AI chat drawer
-│   │   ├── Approvals/            # Approval cards
-│   │   ├── Alerts/               # Alert rule editor
-│   │   ├── Docker/               # Container cards
-│   │   ├── Fleet/                # Instance cards
-│   │   ├── SessionReplay/        # Trace timeline
-│   │   └── Actions/              # Action cards
+│   │   ├── charts/               # Dashboard charts
+│   │   ├── office/               # 2D/alt office views
+│   │   └── shared/               # Shared client providers + dialogs
 │   ├── config/
 │   │   ├── branding.ts           # Branding (reads from env)
 │   │   └── actions.ts            # Safe action definitions
 │   └── lib/
 │       ├── auth/                 # Auth, RBAC, audit, TOTP
-│       ├── events/               # Event bus, watchers, pollers
-│       ├── docker/               # Docker Engine API client
-│       ├── alerts/               # Alert engine + channels
-│       ├── fleet/                # Fleet DB + ingest
-│       ├── chat/                 # Gateway proxy + tools
-│       └── sessions/             # Trace parser
-├── collector/                    # Standalone fleet collector script
+│       └── events/               # Event bus, watchers, pollers
 ├── data/                         # JSON data + SQLite DBs (gitignored)
 ├── docs/                         # Extended documentation
 ├── public/
@@ -347,8 +236,7 @@ mission-control/
 | Icons | Lucide React |
 | Database | SQLite (better-sqlite3) |
 | Auth | Argon2id + TOTP (otpauth) |
-| Streaming | Server-Sent Events + WebSocket |
-| Push | Web Push API (VAPID) |
+| Streaming | Server-Sent Events |
 | Runtime | Node.js 22 |
 
 ---
@@ -362,10 +250,7 @@ mission-control/
 - TOTP secrets encrypted at rest with AES-256-GCM
 - All control actions logged to an append-only audit trail
 - Safe action controls use `execFile` (no shell expansion, no user input interpolation)
-- Terminal command allowlist replaced with predefined action definitions in code
-- Docker socket access is opt-in and configurable
-- Fleet collector API keys are separate from user sessions
-- CSP headers restrict inline scripts and external resources
+- Terminal command execution is restricted to predefined action definitions in code
 
 Generate fresh secrets:
 
@@ -405,7 +290,6 @@ echo 'DOCKER_SOCKET=/path/to/docker.sock' >> .env.local
 
 **TOTP code rejected**
 - Verify your device clock is synced (TOTP is time-sensitive)
-- Use a backup code if your authenticator is unavailable
 - An admin can reset your MFA from the Users page
 
 **Build errors after pulling updates**
@@ -420,7 +304,7 @@ npm run build
 ## Roadmap
 
 - [x] Fork and restructure from upstream
-- [ ] **Phase 1:** SSE streaming layer, multi-user auth + TOTP, safe action controls
+- [x] **Phase 1:** SSE streaming layer, multi-user auth + TOTP, safe action controls
 - [ ] **Phase 2:** Agent lifecycle control, alerting engine, Docker management
 - [ ] **Phase 3:** AI ops chat, session replay with trace inspection
 - [ ] **Phase 4:** Fleet monitoring with remote collectors, PWA + push notifications

@@ -5,6 +5,7 @@
  * auth.db using better-sqlite3. Returns 401/403 JSON on failure,
  * or calls the handler with an AuthContext on success.
  */
+import type { NextRequest } from 'next/server';
 import { validateSession } from '@/lib/auth/session';
 import { hasPermission, isValidRole, type Role } from '@/lib/auth/roles';
 import { logAudit } from '@/lib/auth/audit';
@@ -15,9 +16,19 @@ export type AuthContext = {
   role: Role;
 };
 
-type AuthenticatedHandler = (
+type RouteParams = Record<string, string>;
+
+type RouteContext<TParams extends RouteParams = RouteParams> = {
+  params?: Promise<TParams> | TParams;
+};
+
+type ResolvedRouteContext<TParams extends RouteParams = RouteParams> = {
+  params?: TParams;
+};
+
+type AuthenticatedHandler<TParams extends RouteParams = RouteParams> = (
   request: Request,
-  context: { params?: Record<string, string> },
+  context: ResolvedRouteContext<TParams>,
   auth: AuthContext,
 ) => Response | Promise<Response>;
 
@@ -59,8 +70,16 @@ function getSessionToken(request: Request): string | null {
 export function withAuth(
   handler: AuthenticatedHandler,
   options?: WithAuthOptions,
-): (request: Request, context: { params?: Record<string, string> }) => Promise<Response> {
-  return async (request: Request, context: { params?: Record<string, string> }) => {
+): (request: NextRequest, context: RouteContext) => Promise<Response>;
+export function withAuth<TParams extends RouteParams>(
+  handler: AuthenticatedHandler<TParams>,
+  options?: WithAuthOptions,
+): (request: NextRequest, context: RouteContext<TParams>) => Promise<Response>;
+export function withAuth<TParams extends RouteParams>(
+  handler: AuthenticatedHandler<TParams>,
+  options?: WithAuthOptions,
+): (request: NextRequest, context: RouteContext<TParams>) => Promise<Response> {
+  return async (request: NextRequest, context: RouteContext<TParams>) => {
     const ip = getClientIp(request);
 
     const token = getSessionToken(request);
@@ -135,6 +154,7 @@ export function withAuth(
       );
     }
 
-    return handler(request, context, auth);
+    const params = context?.params ? await context.params : undefined;
+    return handler(request, { params }, auth);
   };
 }

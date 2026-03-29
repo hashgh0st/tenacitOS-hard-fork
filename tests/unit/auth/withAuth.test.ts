@@ -5,6 +5,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
+import { NextRequest } from 'next/server';
 import { initAuthDb } from '@/lib/auth/db';
 import { createSession } from '@/lib/auth/session';
 import { withAuth, type AuthContext } from '@/lib/auth/withAuth';
@@ -44,12 +45,12 @@ describe('withAuth', () => {
     testDb.close();
   });
 
-  function makeRequest(sessionToken?: string, headers?: Record<string, string>): Request {
+  function makeRequest(sessionToken?: string, headers?: Record<string, string>): NextRequest {
     const h = new Headers(headers);
     if (sessionToken) {
       h.set('cookie', `tenacitos_session=${sessionToken}`);
     }
-    return new Request('http://localhost/api/test', { headers: h });
+    return new NextRequest('http://localhost/api/test', { headers: h });
   }
 
   it('returns 401 when no session cookie is present', async () => {
@@ -94,6 +95,30 @@ describe('withAuth', () => {
     expect(capturedAuth!.userId).toBe(TEST_USER_ID);
     expect(capturedAuth!.username).toBe('admin_user');
     expect(capturedAuth!.role).toBe('admin');
+  });
+
+  it('resolves promise-based route params before calling the handler', async () => {
+    const { token } = createSession(TEST_USER_ID, TEST_IP, TEST_UA, false, testDb);
+
+    let capturedParams: { executionId?: string } | undefined;
+    const handler = vi.fn(
+      (
+        _req: Request,
+        ctx: { params?: { executionId?: string } },
+      ) => {
+        capturedParams = ctx.params;
+        return Response.json({ ok: true });
+      },
+    );
+
+    const wrapped = withAuth<{ executionId: string }>(handler);
+    const response = await wrapped(makeRequest(token), {
+      params: Promise.resolve({ executionId: 'exec-123' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(handler).toHaveBeenCalledOnce();
+    expect(capturedParams).toEqual({ executionId: 'exec-123' });
   });
 
   it('returns 403 when user role is insufficient', async () => {
@@ -173,7 +198,7 @@ describe('withAuth', () => {
     const handler = vi.fn(() => Response.json({ ok: true }));
     const wrapped = withAuth(handler);
 
-    const request = new Request('http://localhost/api/test', {
+    const request = new NextRequest('http://localhost/api/test', {
       headers: {
         cookie: `other_cookie=foo; tenacitos_session=${token}; another=bar`,
       },

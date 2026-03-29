@@ -10,6 +10,9 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
+import { NextRequest } from 'next/server';
+import { existsSync } from 'fs';
+import path from 'path';
 import { initAuthDb } from '@/lib/auth/db';
 import { createSession } from '@/lib/auth/session';
 import { getActionById, ACTIONS } from '@/config/actions';
@@ -99,6 +102,17 @@ describe('Action Registry', () => {
       }
     }
   });
+
+  it('all script-backed actions reference files that exist', () => {
+    for (const action of ACTIONS) {
+      if (action.command === 'npx' && action.args[0] === 'tsx' && action.args[1]) {
+        expect(
+          existsSync(path.join(process.cwd(), action.args[1])),
+          `${action.id} points to missing script ${action.args[1]}`,
+        ).toBe(true);
+      }
+    }
+  });
 });
 
 describe('Actions API Route', () => {
@@ -136,8 +150,8 @@ describe('Actions API Route', () => {
   function makeRequest(
     sessionToken: string,
     body: Record<string, unknown>,
-  ): Request {
-    return new Request('http://localhost/api/actions', {
+  ): NextRequest {
+    return new NextRequest('http://localhost/api/actions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -322,8 +336,31 @@ describe('Actions API Route', () => {
     expect(typeof body.executionId).toBe('string');
   });
 
+  it('supports promise-based params on the action stream route', async () => {
+    const { token } = createSession(TEST_OPERATOR_ID, TEST_IP, TEST_UA, false, testDb);
+    const { GET } = await import('@/app/api/actions/[executionId]/stream/route');
+
+    const response = await GET(
+      new NextRequest('http://localhost/api/actions/exec-123/stream', {
+        headers: {
+          cookie: `tenacitos_session=${token}`,
+        },
+      }),
+      { params: Promise.resolve({ executionId: 'exec-123' }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toBe('text/event-stream');
+
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    const { value } = await reader.read();
+    expect(decoder.decode(value)).toContain('"executionId":"exec-123"');
+    await reader.cancel();
+  });
+
   it('returns 401 when no session is present', async () => {
-    const request = new Request('http://localhost/api/actions', {
+    const request = new NextRequest('http://localhost/api/actions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ actionId: 'system-info' }),

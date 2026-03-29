@@ -1,12 +1,15 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import React, { act, useEffect } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useSSE, type UseSSEResult } from '@/hooks/useSSE';
 
-// ── Mock EventSource ────────────────────────────────────────────────────────
-
+type Payload = { count: number };
 type ESHandler = ((event: MessageEvent) => void) | ((event: Event) => void) | null;
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
+
   url: string;
   readyState: number;
   onopen: ESHandler = null;
@@ -16,6 +19,7 @@ class MockEventSource {
   static readonly CONNECTING = 0;
   static readonly OPEN = 1;
   static readonly CLOSED = 2;
+
   readonly CONNECTING = 0;
   readonly OPEN = 1;
   readonly CLOSED = 2;
@@ -30,10 +34,11 @@ class MockEventSource {
     this.readyState = MockEventSource.CLOSED;
   }
 
-  // Test helpers
   simulateOpen() {
     this.readyState = MockEventSource.OPEN;
-    if (this.onopen) (this.onopen as (event: Event) => void)(new Event('open'));
+    if (this.onopen) {
+      (this.onopen as (event: Event) => void)(new Event('open'));
+    }
   }
 
   simulateMessage(data: string) {
@@ -45,77 +50,131 @@ class MockEventSource {
   }
 
   simulateError() {
-    if (this.onerror) (this.onerror as (event: Event) => void)(new Event('error'));
+    if (this.onerror) {
+      (this.onerror as (event: Event) => void)(new Event('error'));
+    }
   }
 }
 
-// Install mock before importing the hook
-(globalThis as Record<string, unknown>).EventSource = MockEventSource;
+function HookHarness({
+  endpoint,
+  onChange,
+}: {
+  endpoint: string;
+  onChange: (state: UseSSEResult<Payload>) => void;
+}) {
+  const state = useSSE<Payload>(endpoint);
 
-// ── Import hook module ──────────────────────────────────────────────────────
-// We need to test the exported function's internals indirectly.
-// Since we can't use renderHook without @testing-library/react,
-// we'll test the module's logic via unit assertions.
+  useEffect(() => {
+    onChange(state);
+  }, [state, onChange]);
 
-describe('useSSE hook (logic tests)', () => {
+  return null;
+}
+
+describe('useSSE', () => {
+  let root: Root | null = null;
+  let container: HTMLDivElement | null = null;
+  const fetchSpy = vi.fn();
+
   beforeEach(() => {
     MockEventSource.instances = [];
     vi.useFakeTimers();
+    vi.stubGlobal('EventSource', MockEventSource as unknown as typeof EventSource);
+    vi.stubGlobal('fetch', fetchSpy);
+    fetchSpy.mockReset();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    if (root) {
+      await act(async () => {
+        root!.unmount();
+      });
+    }
+
+    if (container?.parentNode) {
+      container.parentNode.removeChild(container);
+    }
+
+    root = null;
+    container = null;
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
-  it('MockEventSource captures instances', () => {
-    const es = new MockEventSource('/test');
+  async function renderHook(onChange: (state: UseSSEResult<Payload>) => void) {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root!.render(
+        React.createElement(HookHarness, {
+          endpoint: '/api/stream/test',
+          onChange,
+        }),
+      );
+    });
+  }
+
+  it('updates state from SSE open and message events', async () => {
+    let latestState: UseSSEResult<Payload> | null = null;
+
+    await renderHook((state) => {
+      latestState = state;
+    });
+
     expect(MockEventSource.instances).toHaveLength(1);
-    expect(es.url).toBe('/test');
-    expect(es.readyState).toBe(0);
+    expect(latestState?.status).toBe('connecting');
+
+    await act(async () => {
+      MockEventSource.instances[0].simulateOpen();
+      MockEventSource.instances[0].simulateMessage(JSON.stringify({ count: 7 }));
+    });
+
+    expect(latestState?.status).toBe('connected');
+    expect(latestState?.error).toBeNull();
+    expect(latestState?.data).toEqual({ count: 7 });
   });
 
-  it('MockEventSource simulateOpen sets readyState', () => {
-    const es = new MockEventSource('/test');
-    const handler = vi.fn();
-    es.onopen = handler;
-    es.simulateOpen();
-    expect(es.readyState).toBe(1);
-    expect(handler).toHaveBeenCalledOnce();
-  });
+  it('retries SSE after repeated failures without falling back to fetch', async () => {
+    let latestState: UseSSEResult<Payload> | null = null;
 
-  it('MockEventSource simulateMessage calls onmessage', () => {
-    const es = new MockEventSource('/test');
-    const handler = vi.fn();
-    es.onmessage = handler;
-    es.simulateMessage('{"foo":"bar"}');
-    expect(handler).toHaveBeenCalledOnce();
-    expect(handler.mock.calls[0][0].data).toBe('{"foo":"bar"}');
-  });
+    await renderHook((state) => {
+      latestState = state;
+    });
 
-  it('MockEventSource simulateError calls onerror', () => {
-    const es = new MockEventSource('/test');
-    const handler = vi.fn();
-    es.onerror = handler;
-    es.simulateError();
-    expect(handler).toHaveBeenCalledOnce();
-  });
+    await act(async () => {
+      MockEventSource.instances[0].simulateError();
+    });
+    expect(latestState?.status).toBe('connecting');
 
-  it('MockEventSource close sets readyState to CLOSED', () => {
-    const es = new MockEventSource('/test');
-    es.close();
-    expect(es.readyState).toBe(2);
-  });
-});
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(MockEventSource.instances).toHaveLength(2);
 
-describe('useSSE module exports', () => {
-  it('exports useSSE function', async () => {
-    const mod = await import('@/hooks/useSSE');
-    expect(typeof mod.useSSE).toBe('function');
-  });
+    await act(async () => {
+      MockEventSource.instances[1].simulateError();
+    });
+    expect(latestState?.status).toBe('connecting');
 
-  it('exports SSEStatus type (via runtime check on returned type)', async () => {
-    // The type is only at compile-time, but we verify the module loads cleanly
-    const mod = await import('@/hooks/useSSE');
-    expect(mod).toBeDefined();
+    await act(async () => {
+      vi.advanceTimersByTime(2_000);
+    });
+    expect(MockEventSource.instances).toHaveLength(3);
+
+    await act(async () => {
+      MockEventSource.instances[2].simulateError();
+    });
+    expect(latestState?.status).toBe('error');
+    expect(latestState?.error?.message).toContain('retrying');
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(4_000);
+    });
+    expect(MockEventSource.instances).toHaveLength(4);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

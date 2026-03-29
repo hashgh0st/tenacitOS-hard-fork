@@ -29,7 +29,6 @@ We will respond within 48 hours and work with you to resolve the issue.
 - **Password hashing**: Argon2id (memoryCost=65536, timeCost=3, parallelism=4) with PBKDF2 fallback
 - **Two-factor authentication**: TOTP (RFC 6238) compatible with Google Authenticator, Authy, 1Password
 - **TOTP secrets**: Encrypted at rest with AES-256-GCM using `AUTH_SECRET` as key derivation input
-- **Backup codes**: 10 single-use codes generated at TOTP setup, stored hashed
 - **Session tokens**: 32-byte random, stored as SHA-256 hash in SQLite
 - **Session cookies**: `httpOnly`, `sameSite=lax`, `secure` in production
 - **Login rate limiting**: 5 failed attempts triggers 15-minute lockout per IP
@@ -40,9 +39,9 @@ Three roles with hierarchical permissions:
 
 | Role | Access |
 |------|--------|
-| **admin** | Full access. User management, audit logs, fleet API keys, system settings. |
-| **operator** | Agent control, approvals, Docker management, alert configuration, all actions. |
-| **viewer** | Read-only access to all dashboards and logs. |
+| **admin** | Full access to the dashboard, audit log, user management, and all actions. |
+| **operator** | Operational dashboards plus non-admin actions. |
+| **viewer** | Read-only access to dashboards and logs. |
 
 All API routes enforce role-based access via a `withAuth()` wrapper in Node.js route handlers. The Edge Runtime middleware only checks cookie existence (no SQLite access in Edge).
 
@@ -67,25 +66,20 @@ All API routes enforce role-based access via a `withAuth()` wrapper in Node.js r
 
 ### Content Security
 
-- CSP headers configured in `next.config.mjs` restrict inline scripts and external resources
-- AI chat responses from the gateway are sanitized before rendering (no raw HTML injection)
+- Markdown and text rendering stay within the shipped dashboard UI; there is no Phase 3 chat surface in the current release.
 
 ### Network Security
 
 - Gateway API runs on loopback by default (`GATEWAY_URL=http://localhost:3001`)
 - Docker socket access is opt-in and configurable via `DOCKER_SOCKET` env var
-- Fleet collector API keys are separate from user sessions -- a compromised collector key cannot access the dashboard UI
-- Push subscriptions are per-user; a user can only manage their own
 
 ### Rate Limiting
 
 | Endpoint | Limit | Scope |
 |----------|-------|-------|
 | Login | 5 attempts / 15 min | Per IP |
-| API (authenticated) | 60 / min | Per user |
-| AI Chat | 20 messages / min | Per user |
-| Agent control | 10 actions / min | Per user |
-| Fleet collector ingest | 120 / min | Per API key |
+
+Additional per-feature rate limits for later roadmap phases are not in scope for the current release.
 
 ## Security Best Practices
 

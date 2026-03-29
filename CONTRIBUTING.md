@@ -30,7 +30,7 @@ npm run dev
 
 - **Components**: `src/components/` - Reusable UI components
   - `src/components/shared/` - Cross-feature shared components
-  - `src/components/{FeatureName}/` - Feature-specific components (e.g., `Docker/`, `Alerts/`)
+  - `src/components/Actions/` - Safe action cards and output
   - `src/components/Office3D/` - 3D office (React Three Fiber imports only here)
 - **Pages**: `src/app/(dashboard)/` - Dashboard pages (protected by auth)
 - **APIs**: `src/app/api/` - API route handlers
@@ -38,12 +38,7 @@ npm run dev
 - **Lib**: `src/lib/` - Business logic organized by feature
   - `src/lib/auth/` - Authentication, RBAC, audit, TOTP
   - `src/lib/events/` - Event bus, watchers, pollers
-  - `src/lib/docker/` - Docker Engine API client
-  - `src/lib/alerts/` - Alert engine, channels, resolvers
-  - `src/lib/fleet/` - Fleet DB, ingest, API keys
-  - `src/lib/chat/` - Gateway proxy, tool functions
-  - `src/lib/sessions/` - Trace parser
-- **Hooks**: `src/hooks/` - React hooks (useSSE, useAuth, useWebSocket)
+- **Hooks**: `src/hooks/` - React hooks (`useSSE`, `useAuth`, `useDebounce`)
 - **Data**: `data/` - JSON data + SQLite DBs (gitignored, use `.example` versions)
 - **Tests**: `tests/unit/`, `tests/integration/`, `tests/e2e/`
 
@@ -197,8 +192,8 @@ npm run test:e2e      # E2E tests (Playwright)
 
 Unit tests are **mandatory** for:
 - Auth: password hashing, TOTP, sessions, role checks
-- Alert engine: condition evaluation, cooldown, sustained checks
-- Rate limiters: sliding window enforcement
+- SSE/event delivery: hooks, stream routes, event bus behavior
+- Safe actions: registry validation, auth enforcement, command execution
 
 ### Manual Testing Checklist
 
@@ -267,7 +262,6 @@ clicking notification items.
 
 1. **Update documentation**
    - Update README.md if adding features
-   - Update IMPLEMENTATION-STATUS.md with completion status
    - Add docstrings to new functions/components
 
 2. **Keep PRs focused**

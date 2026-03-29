@@ -13,7 +13,7 @@ import { eventBus } from '@/lib/events/bus';
 
 async function handleGet(
   _request: Request,
-  context: { params?: Record<string, string> },
+  context: { params?: { executionId?: string } },
 ): Promise<Response> {
   const executionId = context.params?.executionId;
 
@@ -85,4 +85,4 @@ async function handleGet(
   });
 }
 
-export const GET = withAuth(handleGet);
+export const GET = withAuth<{ executionId: string }>(handleGet);
