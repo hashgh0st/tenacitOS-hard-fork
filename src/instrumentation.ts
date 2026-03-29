@@ -12,7 +12,11 @@ export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     const { startPollers } = await import('@/lib/events/pollers');
     const { startWatchers } = await import('@/lib/events/watchers');
+    const { initResolverSubscriptions } = await import('@/lib/alerts/resolvers');
+    const { startAlertEngine } = await import('@/lib/alerts/engine');
     startPollers();
     startWatchers();
+    initResolverSubscriptions();
+    startAlertEngine();
   }
 }

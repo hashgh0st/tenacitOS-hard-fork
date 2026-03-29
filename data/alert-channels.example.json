@@ -1,0 +1,5 @@
+{
+  "webhook_urls": [],
+  "telegram": { "bot_token": "", "chat_id": "" },
+  "email": { "recipients": [] }
+}
