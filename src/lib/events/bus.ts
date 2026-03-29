@@ -7,6 +7,7 @@
  */
 import { EventEmitter } from 'events';
 import type { Activity } from '@/lib/activity-logger';
+import type { ApprovalRequest } from '@/lib/gateway/types';
 
 // ── Payload types ──────────────────────────────────────────────────────────
 
@@ -89,6 +90,8 @@ export interface EventPayloadMap {
   'alert:fired': AlertEvent;
   'alert:resolved': AlertEvent;
   'docker:status': DockerStatusUpdate;
+  'approval:new': ApprovalRequest;
+  'approval:resolved': ApprovalRequest;
 }
 
 export type EventName = keyof EventPayloadMap;
