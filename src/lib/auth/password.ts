@@ -97,9 +97,9 @@ async function verifyWithPbkdf2(hash: string, password: string): Promise<boolean
   const salt = Buffer.from(parts[2], 'hex');
   const storedHash = Buffer.from(parts[3], 'hex');
 
-  const derived = await pbkdf2Async(password, salt, iterations, storedHash.length, PBKDF2_DIGEST);
+  const derived = await pbkdf2Async(password, salt, iterations, PBKDF2_KEY_LEN, PBKDF2_DIGEST);
 
-  // Timing-safe comparison
+  // Timing-safe comparison (lengths should always match with fixed key length)
   if (derived.length !== storedHash.length) return false;
   return timingSafeEqual(derived, storedHash);
 }

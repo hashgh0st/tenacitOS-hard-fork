@@ -87,12 +87,16 @@ export function verifyTOTP(secret: string, token: string): boolean {
  * Generate 10 random backup codes (8 alphanumeric chars each).
  */
 export function generateBackupCodes(): string[] {
+  const limit = 256 - (256 % BACKUP_CODE_CHARS.length); // rejection sampling threshold
   const codes: string[] = [];
   for (let i = 0; i < BACKUP_CODE_COUNT; i++) {
     let code = '';
-    const bytes = randomBytes(BACKUP_CODE_LENGTH);
     for (let j = 0; j < BACKUP_CODE_LENGTH; j++) {
-      code += BACKUP_CODE_CHARS[bytes[j] % BACKUP_CODE_CHARS.length];
+      let byte: number;
+      do {
+        byte = randomBytes(1)[0];
+      } while (byte >= limit);
+      code += BACKUP_CODE_CHARS[byte % BACKUP_CODE_CHARS.length];
     }
     codes.push(code);
   }
