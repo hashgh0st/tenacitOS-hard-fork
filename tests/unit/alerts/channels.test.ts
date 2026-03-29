@@ -10,6 +10,9 @@ const mockExistsSync = vi.fn().mockReturnValue(false);
 const mockReadFileSync = vi.fn().mockReturnValue('[]');
 const mockWriteFileSync = vi.fn();
 const mockMkdirSync = vi.fn();
+const mockReadFile = vi.fn().mockResolvedValue('[]');
+const mockWriteFile = vi.fn().mockResolvedValue(undefined);
+const mockMkdir = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('fs', () => ({
   default: {
@@ -22,6 +25,12 @@ vi.mock('fs', () => ({
   readFileSync: (...args: unknown[]) => mockReadFileSync(...args),
   writeFileSync: (...args: unknown[]) => mockWriteFileSync(...args),
   mkdirSync: (...args: unknown[]) => mockMkdirSync(...args),
+}));
+
+vi.mock('fs/promises', () => ({
+  readFile: (...args: unknown[]) => mockReadFile(...args),
+  writeFile: (...args: unknown[]) => mockWriteFile(...args),
+  mkdir: (...args: unknown[]) => mockMkdir(...args),
 }));
 
 // ── Mock fetch ───────────────────────────────────────────────────────────────
@@ -61,6 +70,9 @@ describe('Alert Channels', () => {
     mockFetch.mockResolvedValue({ ok: true });
     mockExistsSync.mockReturnValue(false);
     mockReadFileSync.mockReturnValue('[]');
+    mockReadFile.mockResolvedValue('[]');
+    mockWriteFile.mockResolvedValue(undefined);
+    mockMkdir.mockResolvedValue(undefined);
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.SMTP_HOST;
   });
@@ -77,7 +89,7 @@ describe('Alert Channels', () => {
       const rule = makeRule({ channels: ['in_app'] });
       await deliverAlert(rule, 95);
 
-      expect(mockWriteFileSync).toHaveBeenCalledWith(
+      expect(mockWriteFile).toHaveBeenCalledWith(
         expect.stringContaining('notifications.json'),
         expect.stringContaining('Test Alert'),
         'utf-8',
@@ -99,7 +111,7 @@ describe('Alert Channels', () => {
       const rule = makeRule({ channels: ['in_app'], severity: 'critical' });
       await deliverAlert(rule, 95);
 
-      const written = mockWriteFileSync.mock.calls[0][1] as string;
+      const written = mockWriteFile.mock.calls[0][1] as string;
       const parsed = JSON.parse(written);
       expect(parsed[0].type).toBe('error');
     });
@@ -192,7 +204,7 @@ describe('Alert Channels', () => {
       const rule = makeRule({ channels: ['in_app'] });
       await deliverResolution(rule);
 
-      const written = mockWriteFileSync.mock.calls[0][1] as string;
+      const written = mockWriteFile.mock.calls[0][1] as string;
       expect(written).toContain('Resolved');
     });
   });

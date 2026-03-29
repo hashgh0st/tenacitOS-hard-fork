@@ -33,6 +33,7 @@ import {
   addRule,
   updateRule,
   deleteRule,
+  invalidateRulesCache,
   initAlertDb,
   recordAlert,
   resolveAlert,
@@ -76,6 +77,7 @@ const sampleRules: AlertRule[] = [
 describe('Rule loading', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    invalidateRulesCache();
   });
 
   it('loads rules from alert-rules.json when it exists', () => {

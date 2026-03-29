@@ -24,6 +24,10 @@ export interface AlertRule {
   telegram_chat_id?: string;
 }
 
+export const VALID_OPERATORS = ['gt', 'lt', 'eq', 'gte', 'lte'] as const;
+export const VALID_CHANNELS: AlertChannel[] = ['in_app', 'webhook', 'telegram', 'email'];
+export const VALID_SEVERITIES: AlertSeverity[] = ['info', 'warning', 'critical'];
+
 export interface AlertHistoryEntry {
   id: string;
   ruleId: string;

@@ -65,15 +65,15 @@ export async function evaluateRules(
   deliverResolutionFn: typeof deliverResolution = deliverResolution,
   nowFn: () => number = Date.now,
 ): Promise<void> {
-  const rules = loadRulesFn().filter((r) => r.enabled);
-  const currentRuleIds = new Set(rules.map((r) => r.id));
+  const allRules = loadRulesFn();
+  const currentRuleIds = new Set(allRules.map((r) => r.id));
 
-  // Prune state for deleted rules
+  // Prune state only for truly deleted rules
   for (const ruleId of state.keys()) {
-    if (!currentRuleIds.has(ruleId)) {
-      state.delete(ruleId);
-    }
+    if (!currentRuleIds.has(ruleId)) state.delete(ruleId);
   }
+
+  const rules = allRules.filter((r) => r.enabled);
 
   for (const rule of rules) {
     try {

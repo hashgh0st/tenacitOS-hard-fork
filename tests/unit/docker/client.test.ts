@@ -128,6 +128,8 @@ function mockHttpTimeout(): void {
 // We need to import after mocking, and reset module between env changes
 let dockerClient: typeof import('@/lib/docker/client');
 
+const mockExistsSync = vi.fn().mockReturnValue(true);
+
 async function loadClient(): Promise<typeof import('@/lib/docker/client')> {
   // Clear module cache to pick up new env vars
   vi.resetModules();
@@ -143,6 +145,18 @@ async function loadClient(): Promise<typeof import('@/lib/docker/client')> {
       request: mockedRequest,
     };
   });
+  // Mock fs so existsSync is controlled by tests
+  vi.doMock('fs', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('fs')>();
+    return {
+      ...actual,
+      default: {
+        ...actual,
+        existsSync: (...args: unknown[]) => mockExistsSync(...args),
+      },
+      existsSync: (...args: unknown[]) => mockExistsSync(...args),
+    };
+  });
   const mod = await import('@/lib/docker/client');
   mod.resetStateCache();
   return mod;
@@ -151,6 +165,7 @@ async function loadClient(): Promise<typeof import('@/lib/docker/client')> {
 describe('Docker Client', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockExistsSync.mockReturnValue(true);
     // Clear env vars
     delete process.env.DOCKER_HOST;
     delete process.env.DOCKER_SOCKET;
@@ -235,10 +250,10 @@ describe('Docker Client', () => {
       expect(state).toBe('unreachable');
     });
 
-    it('returns "not_configured" when no env vars set and default socket fails', async () => {
-      // No DOCKER_HOST or DOCKER_SOCKET set
+    it('returns "not_configured" when no env vars set and default socket does not exist', async () => {
+      // No DOCKER_HOST or DOCKER_SOCKET set, socket file doesn't exist
+      mockExistsSync.mockReturnValue(false);
       dockerClient = await loadClient();
-      mockHttpError('ENOENT');
 
       const state = await dockerClient.getDockerState();
       expect(state).toBe('not_configured');

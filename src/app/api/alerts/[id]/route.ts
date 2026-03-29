@@ -10,12 +10,9 @@ import { withAuth, type AuthContext, getClientIp } from '@/lib/auth/withAuth';
 import { logAudit } from '@/lib/auth/audit';
 import { getRuleById, updateRule, deleteRule } from '@/lib/alerts/storage';
 import type { AlertChannel, AlertSeverity } from '@/lib/alerts/types';
+import { VALID_OPERATORS, VALID_CHANNELS, VALID_SEVERITIES } from '@/lib/alerts/types';
 
 type RouteParams = { id: string };
-
-const VALID_OPERATORS = ['gt', 'lt', 'eq', 'gte', 'lte'] as const;
-const VALID_CHANNELS: AlertChannel[] = ['in_app', 'webhook', 'telegram', 'email'];
-const VALID_SEVERITIES: AlertSeverity[] = ['info', 'warning', 'critical'];
 
 // ── GET: Single rule ────────────────────────────────────────────────────────
 

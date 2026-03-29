@@ -18,13 +18,10 @@ export function TopBar() {
 
     async function fetchCount() {
       try {
-        const res = await fetch("/api/approvals");
+        const res = await fetch("/api/approvals/count");
         if (!res.ok) return;
-        const data = await res.json();
-        const pending = (data.approvals || []).filter(
-          (a: { status: string }) => a.status === "pending",
-        );
-        if (!cancelled) setApprovalCount(pending.length);
+        const data: { count: number } = await res.json();
+        if (!cancelled) setApprovalCount(data.count);
       } catch {
         // Silently ignore — badge just won't update
       }

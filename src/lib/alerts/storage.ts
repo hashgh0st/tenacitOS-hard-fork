@@ -18,17 +18,23 @@ const DB_PATH = path.join(DATA_DIR, 'alerts.db');
 
 // ── Rules (JSON) ─────────────────────────────────────────────────────────────
 
+let _rulesCache: AlertRule[] | null = null;
+
 export function loadRules(): AlertRule[] {
+  if (_rulesCache !== null) return _rulesCache;
   try {
     if (fs.existsSync(RULES_PATH)) {
       const raw = fs.readFileSync(RULES_PATH, 'utf-8');
-      return JSON.parse(raw) as AlertRule[];
+      _rulesCache = JSON.parse(raw) as AlertRule[];
+      return _rulesCache;
     }
     if (fs.existsSync(EXAMPLE_PATH)) {
       const raw = fs.readFileSync(EXAMPLE_PATH, 'utf-8');
-      return JSON.parse(raw) as AlertRule[];
+      _rulesCache = JSON.parse(raw) as AlertRule[];
+      return _rulesCache;
     }
-    return [];
+    _rulesCache = [];
+    return _rulesCache;
   } catch {
     return [];
   }
@@ -39,6 +45,11 @@ export function saveRules(rules: AlertRule[]): void {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
   fs.writeFileSync(RULES_PATH, JSON.stringify(rules, null, 2), 'utf-8');
+  _rulesCache = rules;
+}
+
+export function invalidateRulesCache(): void {
+  _rulesCache = null;
 }
 
 export function getRuleById(id: string): AlertRule | undefined {

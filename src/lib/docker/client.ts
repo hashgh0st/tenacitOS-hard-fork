@@ -12,6 +12,7 @@
  *
  * Also supports legacy DOCKER_SOCKET env var for backwards compatibility.
  */
+import fs from 'fs';
 import http from 'http';
 import type {
   DockerContainer,
@@ -21,7 +22,7 @@ import type {
   DockerState,
 } from './types';
 
-const DEFAULT_SOCKET = '/var/run/docker.sock';
+const DEFAULT_SOCKET_PATH = '/var/run/docker.sock';
 const REQUEST_TIMEOUT_MS = 5000;
 const STATE_CACHE_TTL_MS = 30_000;
 
@@ -68,10 +69,11 @@ export function parseDockerHost(): DockerConnection {
     return { type: 'socket', socketPath: dockerSocket };
   }
 
-  // Check for default socket path existence is deferred to getDockerState()
-  // because we don't want to do filesystem I/O at module load time.
-  // Return default socket config — availability will be checked at request time.
-  return { type: 'socket', socketPath: DEFAULT_SOCKET };
+  // Check if the default socket actually exists on disk
+  if (!fs.existsSync(DEFAULT_SOCKET_PATH)) {
+    return null;
+  }
+  return { type: 'socket', socketPath: DEFAULT_SOCKET_PATH };
 }
 
 // ── Core HTTP function ────────────────────────────────────────────────────

@@ -10,16 +10,7 @@
 import { withAuth, type AuthContext, getClientIp } from '@/lib/auth/withAuth';
 import { logAudit } from '@/lib/auth/audit';
 import { swapModel, isGatewayAvailable, GatewayError } from '@/lib/gateway/client';
-import { SlidingWindowLimiter } from '@/lib/rate-limiter';
-
-/** Agent IDs: alphanumeric with hyphens, underscores, dots. */
-const AGENT_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.\-]*$/;
-
-function isValidAgentId(id: string): boolean {
-  return id.length > 0 && id.length <= 128 && AGENT_ID_RE.test(id);
-}
-
-const limiter = new SlidingWindowLimiter({ maxActions: 10, windowMs: 60_000 });
+import { isValidAgentId, agentControlLimiter } from '@/lib/gateway/validate';
 
 async function handlePost(
   request: Request,
@@ -37,7 +28,7 @@ async function handlePost(
 
   // Rate limit check
   const rateKey = `agent-model:${auth.userId}`;
-  const rateCheck = limiter.check(rateKey);
+  const rateCheck = agentControlLimiter.check(rateKey);
   if (!rateCheck.allowed) {
     return Response.json(
       { error: 'Rate limit exceeded', retryAfterMs: rateCheck.retryAfterMs },
@@ -81,7 +72,7 @@ async function handlePost(
   });
 
   // Record the action for rate limiting
-  limiter.record(rateKey);
+  agentControlLimiter.record(rateKey);
 
   try {
     await swapModel(agentId, model);

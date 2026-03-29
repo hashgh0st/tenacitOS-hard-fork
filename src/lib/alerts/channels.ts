@@ -5,6 +5,7 @@
  * Errors are logged but never thrown — delivery is fire-and-forget.
  */
 import fs from 'fs';
+import { readFile, writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { emitEvent } from '@/lib/events/bus';
 import type { AlertRule, AlertSeverity } from './types';
@@ -27,49 +28,52 @@ function severityToNotificationType(severity: AlertSeverity): 'info' | 'warning'
 
 // ── Channel implementations ──────────────────────────────────────────────────
 
+let notificationWriteLock = Promise.resolve();
+
 async function deliverInApp(rule: AlertRule, message: string): Promise<void> {
-  try {
-    let notifications: Array<Record<string, unknown>> = [];
+  notificationWriteLock = notificationWriteLock.then(async () => {
     try {
-      if (fs.existsSync(NOTIFICATIONS_PATH)) {
-        const raw = fs.readFileSync(NOTIFICATIONS_PATH, 'utf-8');
+      let notifications: Array<Record<string, unknown>> = [];
+      try {
+        const raw = await readFile(NOTIFICATIONS_PATH, 'utf-8');
         notifications = JSON.parse(raw);
+      } catch {
+        notifications = [];
       }
-    } catch {
-      notifications = [];
+
+      const entry = {
+        id: `alert-${rule.id}-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        title: rule.name,
+        message,
+        type: severityToNotificationType(rule.severity),
+        read: false,
+      };
+
+      notifications.unshift(entry);
+      if (notifications.length > MAX_NOTIFICATIONS) {
+        notifications = notifications.slice(0, MAX_NOTIFICATIONS);
+      }
+
+      const dataDir = path.dirname(NOTIFICATIONS_PATH);
+      if (!fs.existsSync(dataDir)) {
+        await mkdir(dataDir, { recursive: true });
+      }
+      await writeFile(NOTIFICATIONS_PATH, JSON.stringify(notifications, null, 2), 'utf-8');
+
+      emitEvent('notification:new', {
+        id: entry.id,
+        timestamp: entry.timestamp,
+        title: entry.title,
+        message: entry.message,
+        type: entry.type,
+        read: false,
+      });
+    } catch (err) {
+      console.error('[alert-channel] in_app delivery failed:', err);
     }
-
-    const entry = {
-      id: `alert-${rule.id}-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      title: rule.name,
-      message,
-      type: severityToNotificationType(rule.severity),
-      read: false,
-    };
-
-    notifications.unshift(entry);
-    if (notifications.length > MAX_NOTIFICATIONS) {
-      notifications = notifications.slice(0, MAX_NOTIFICATIONS);
-    }
-
-    const dataDir = path.dirname(NOTIFICATIONS_PATH);
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-    fs.writeFileSync(NOTIFICATIONS_PATH, JSON.stringify(notifications, null, 2), 'utf-8');
-
-    emitEvent('notification:new', {
-      id: entry.id,
-      timestamp: entry.timestamp,
-      title: entry.title,
-      message: entry.message,
-      type: entry.type,
-      read: false,
-    });
-  } catch (err) {
-    console.error('[alert-channel] in_app delivery failed:', err);
-  }
+  }).catch(() => {});
+  await notificationWriteLock;
 }
 
 async function deliverWebhook(rule: AlertRule, value: number): Promise<void> {
